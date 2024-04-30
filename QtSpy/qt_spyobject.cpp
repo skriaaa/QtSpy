@@ -39,6 +39,8 @@
 #include <qt_spydlg.h>
 #include "publicfunction.h"
 #include <QThread>
+#include <QStackedLayout>
+#include "qt_spygraphics.h"
 
 CSpyMainWindow::CSpyMainWindow()
 {
@@ -50,35 +52,30 @@ CSpyMainWindow::CSpyMainWindow()
 	setWindowFlags(windowFlags() & ~Qt::WindowCloseButtonHint);
 }
 
-QWidget* CSpyMainWindow::centralWidget()
+void CSpyMainWindow::initWindow()
 {
-	if (layout() && layout()->itemAt(0)) {
-		return layout()->itemAt(0)->widget();
-	}
-	return nullptr;
+	setWindowTitle(_QStr("qt spy"));
+	setObjectName(_QStr("mainwindow"));
+	setWindowFlag(Qt::WindowTitleHint);
+	setWindowFlag(Qt::WindowSystemMenuHint);
+	setWindowFlag(Qt::WindowMinimizeButtonHint);
+	setWindowFlag(Qt::WindowMaximizeButtonHint);
+
+	initSpyTree();
+
+	setGeometry(
+		QStyle::alignedRect(
+			Qt::LeftToRight,
+			Qt::AlignCenter,
+			size(),
+			qApp->primaryScreen()->availableGeometry()
+		)
+	);
 }
 
-bool CSpyMainWindow::setMenuBar(QMenuBar* menuBar)
+void CSpyMainWindow::setMenuBar(QMenuBar* menuBar)
 {
-	if (layout()) {
-		layout()->setMenuBar(menuBar);
-		return true;
-	}
-	return false;
-}
-
-bool CSpyMainWindow::setCentralWidget(QWidget* pCenter)
-{
-	if (layout()) {
-		if (pCenter) {
-			layout()->addWidget(pCenter);
-		}
-		else {
-			layout()->removeItem(layout()->itemAt(0));
-		}
-		return true;
-	}
-	return false;
+	layout()->setMenuBar(menuBar);
 }
 
 void CSpyMainWindow::keyPressEvent(QKeyEvent* event)
@@ -88,6 +85,25 @@ void CSpyMainWindow::keyPressEvent(QKeyEvent* event)
 		return;
 	}
 	QDialog::keyPressEvent(event);
+}
+
+
+QTreeWidget* CSpyMainWindow::tree()
+{
+	return m_pTree;
+}
+
+void CSpyMainWindow::initSpyTree()
+{
+	m_pTree = new CWidgetSpyTree;
+	layout()->addWidget(m_pTree);
+	QTreeWidgetItem* rootNode = new QTreeWidgetItem();
+	m_pTree->addTopLevelItem(rootNode);
+}
+
+void CSpyMainWindow::clearSpyTree()
+{
+	m_pTree->clear();
 }
 
 CQtSpyObject& CQtSpyObject::GetInstance()
@@ -130,17 +146,11 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 				QMouseEvent* typeEvent = dynamic_cast<QMouseEvent*>(event);
 				QPoint ptMouse = typeEvent->globalPos();
 				qDebug() << "query widget at point:" << ptMouse;
-				QWidget* pTarget = QApplication::widgetAt(ptMouse);
 				mainWindow->removeEventFilter(this);
 				mainWindow->releaseMouse();
 				QApplication::restoreOverrideCursor();
 				m_eCursorAction = EScreenMouseAction::None;
-				if (pTarget) {
-					m_pSpyWidget = pTarget;
-					if (m_pSpyWidget) {
-						BuildSpyTree(m_pSpyWidget);
-					}
-				}
+				setTreeTarget(ptMouse);
 				return true;
 			}
 		}
@@ -194,155 +204,164 @@ bool CQtSpyObject::ShutdownSpy()
 
 bool CQtSpyObject::initToolWindow()
 {
-	if (!m_pMainWindow->centralWidget()) {
-		m_pMainWindow->setWindowTitle(_QStr("qt spy"));
-		m_pMainWindow->setObjectName(_QStr("mainwindow"));
-		m_pMainWindow->setWindowFlag(Qt::WindowTitleHint);
-		m_pMainWindow->setWindowFlag(Qt::WindowSystemMenuHint);
-		m_pMainWindow->setWindowFlag(Qt::WindowMinimizeButtonHint);
-		m_pMainWindow->setWindowFlag(Qt::WindowMaximizeButtonHint);
-		QMenuBar* menuBar = new QMenuBar();
-		QAction* actionSpyTarget = new QAction(_QStr("监控"));
-		QObject::connect(actionSpyTarget, &QAction::triggered, [&]() {
-			SpyTargetTree();
-			});
-		QAction* actionReload = new QAction(_QStr("重载"));
-		QObject::connect(actionReload, &QAction::triggered, [&]() {
-			BuildSpyTree(m_pSpyWidget);
-			});
-		QAction* actionNameSearch = new QAction(_QStr("名称查找"));
-		QObject::connect(actionNameSearch, &QAction::triggered, [&]() {
-			SearchSpyTreeByName();
-			});
-		QAction* actionCursorSearch = new QAction(_QStr("鼠标查找"));
-		QObject::connect(actionCursorSearch, &QAction::triggered, [&]() {
-			SearchSpyTreeByCursor();
-			});
-		QAction* actionCursorLocate = new QAction(_QStr("鼠标定位"));
-		QObject::connect(actionCursorLocate, &QAction::triggered, [&]() {
-			ShowCursorLocate();
-			});
-		QMenu* menuSystem = new QMenu(_QStr("系统"));
-		QAction* actionSysInfo = new QAction(_QStr("系统信息"));
-		QObject::connect(actionSysInfo, &QAction::triggered, [&]() {
-			ShowSystemInfo();
-			});
-		QAction* actionSysFont = new QAction(_QStr("系统字体"));
-		QObject::connect(actionSysFont, &QAction::triggered, [&]() {
-			ShowSystemFont();
-			});
-		menuSystem->addAction(actionSysInfo);
-		menuSystem->addAction(actionSysFont);
+	QMenuBar* menuBar = new QMenuBar();
+	QAction* actionSpyTarget = new QAction(_QStr("监控"));
+	QObject::connect(actionSpyTarget, &QAction::triggered, [&]() {
+		SpyTargetTree();
+		});
+	QAction* actionReload = new QAction(_QStr("重载"));
+	QObject::connect(actionReload, &QAction::triggered, [&]() {
+		setTreeTarget(m_pSpyWidget);
+		});
+	QAction* actionNameSearch = new QAction(_QStr("名称查找"));
+	QObject::connect(actionNameSearch, &QAction::triggered, [&]() {
+		SearchSpyTreeByName();
+		});
+	QAction* actionCursorSearch = new QAction(_QStr("鼠标查找"));
+	QObject::connect(actionCursorSearch, &QAction::triggered, [&]() {
+		SearchSpyTreeByCursor();
+		});
+	QAction* actionCursorLocate = new QAction(_QStr("鼠标定位"));
+	QObject::connect(actionCursorLocate, &QAction::triggered, [&]() {
+		ShowCursorLocate();
+		});
+	QMenu* menuSystem = new QMenu(_QStr("系统"));
+	QAction* actionSysInfo = new QAction(_QStr("系统信息"));
+	QObject::connect(actionSysInfo, &QAction::triggered, [&]() {
+		ShowSystemInfo();
+		});
+	QAction* actionSysFont = new QAction(_QStr("系统字体"));
+	QObject::connect(actionSysFont, &QAction::triggered, [&]() {
+		ShowSystemFont();
+		});
+	menuSystem->addAction(actionSysInfo);
+	menuSystem->addAction(actionSysFont);
 
 
-		QMenu* menuDebug = new QMenu(_QStr("调试"));
-		QAction* actionStatusInfo = new QAction(_QStr("状态信息"));
-		QObject::connect(actionStatusInfo, &QAction::triggered, [&]() {
-			ShowStatusInfo();
-			});
-		menuDebug->addAction(actionStatusInfo);
+	QMenu* menuDebug = new QMenu(_QStr("调试"));
+	QAction* actionStatusInfo = new QAction(_QStr("状态信息"));
+	QObject::connect(actionStatusInfo, &QAction::triggered, [&]() {
+		ShowStatusInfo();
+		});
+	menuDebug->addAction(actionStatusInfo);
 
 
-		QMenu* menuResource = new QMenu(_QStr("资源"));
-		QAction* menuResourceManage = menuResource->addAction("管理");
-		QObject::connect(menuResourceManage, &QAction::triggered, []() {
-			//CResourceManageWnd dlg;
-			//dlg.exec();
-			});
-		QAction* menuLookup = menuResource->addAction("查看");
-		QObject::connect(menuLookup, &QAction::triggered, []() {
-			//CResourceCheckWnd dlg;
-			//dlg.exec();
-			});
+	QMenu* menuResource = new QMenu(_QStr("资源"));
+	QAction* menuResourceManage = menuResource->addAction("管理");
+	QObject::connect(menuResourceManage, &QAction::triggered, []() {
+		//CResourceManageWnd dlg;
+		//dlg.exec();
+		});
+	QAction* menuLookup = menuResource->addAction("查看");
+	QObject::connect(menuLookup, &QAction::triggered, []() {
+		//CResourceCheckWnd dlg;
+		//dlg.exec();
+		});
 
-		QMenu* menuColor = new QMenu(_QStr("颜色"));
-		QAction* menuScreenColor = menuColor->addAction("取色");
-		QObject::connect(menuScreenColor, &QAction::triggered, [&]() {
-			CheckColor();
-			});
-		QAction* menuAdjustColor = menuColor->addAction("调色");
-		QObject::connect(menuAdjustColor, &QAction::triggered, []() {
-			QColorDialog dlg;
-			dlg.setOption(QColorDialog::ShowAlphaChannel);
-			dlg.exec();
-			});
+	QMenu* menuColor = new QMenu(_QStr("颜色"));
+	QAction* menuScreenColor = menuColor->addAction("取色");
+	QObject::connect(menuScreenColor, &QAction::triggered, [&]() {
+		CheckColor();
+		});
+	QAction* menuAdjustColor = menuColor->addAction("调色");
+	QObject::connect(menuAdjustColor, &QAction::triggered, []() {
+		QColorDialog dlg;
+		dlg.setOption(QColorDialog::ShowAlphaChannel);
+		dlg.exec();
+		});
 
-		QMenu* menuSetting = new QMenu(_QStr("设置"));
-		QMenu* menuUIStyle = menuSetting->addMenu("界面风格");
-		for (QString strStyleName : QStyleFactory::keys())
-		{
-			QAction* actionStyle = menuUIStyle->addAction(strStyleName);
-			QObject::connect(actionStyle, &QAction::triggered, [strStyleName]() {
-				QApplication::setStyle(QStyleFactory::create(strStyleName));
-				});
-		}
-		QMenu* menuSimulateDPI = menuSetting->addMenu("模拟DPI");
-		// 暂时屏蔽 skria
-		//QObject::connect(menuSimulateDPI->addAction("重置系统值"), &QAction::triggered, []() {
-		//	QScreen* screen = QGuiApplication::primaryScreen();
-		//	if (screen) {
-		//		GetCoreInst().uilSetDPI(screen->logicalDotsPerInch());
-		//	}
-		//	});
-		//QObject::connect(menuSimulateDPI->addAction("96 100%"), &QAction::triggered, []() {
-		//	GetCoreInst().uilSetDPI(96);
-		//	});
-		//QObject::connect(menuSimulateDPI->addAction("120 125%"), &QAction::triggered, []() {
-		//	GetCoreInst().uilSetDPI(120);
-		//	});
-		//QObject::connect(menuSimulateDPI->addAction("144 150%"), &QAction::triggered, []() {
-		//	GetCoreInst().uilSetDPI(144);
-		//	});
-		//QObject::connect(menuSimulateDPI->addAction("168 175%"), &QAction::triggered, []() {
-		//	GetCoreInst().uilSetDPI(168);
-		//	});
-		//QObject::connect(menuSimulateDPI->addAction("192 200%"), &QAction::triggered, []() {
-		//	GetCoreInst().uilSetDPI(192);
-		//	});
-		menuBar->addAction(actionSpyTarget);
-		menuBar->addAction(actionReload);
-		menuBar->addAction(actionNameSearch);
-		menuBar->addAction(actionCursorSearch);
-		menuBar->addAction(actionCursorLocate);
-		menuBar->addMenu(menuSystem);
-		menuBar->addMenu(menuDebug);
-		menuBar->addMenu(menuResource);
-		menuBar->addMenu(menuColor);
-		menuBar->addMenu(menuSetting);
-		m_pMainWindow->setMenuBar(menuBar);
+	QMenu* menuSetting = new QMenu(_QStr("设置"));
+	QMenu* menuUIStyle = menuSetting->addMenu("界面风格");
+	for (QString strStyleName : QStyleFactory::keys())
+	{
+		QAction* actionStyle = menuUIStyle->addAction(strStyleName);
+		QObject::connect(actionStyle, &QAction::triggered, [strStyleName]() {
+			QApplication::setStyle(QStyleFactory::create(strStyleName));
+			});
 	}
-	m_pMainWindow->setGeometry(
-		QStyle::alignedRect(
-			Qt::LeftToRight,
-			Qt::AlignCenter,
-			m_pMainWindow->size(),
-			qApp->primaryScreen()->availableGeometry()
-		)
-	);
-	if (m_pSpyWidget) {
-		BuildSpyTree(m_pSpyWidget);
-	}
+	QMenu* menuSimulateDPI = menuSetting->addMenu("模拟DPI");
+	// 暂时屏蔽 skria
+	//QObject::connect(menuSimulateDPI->addAction("重置系统值"), &QAction::triggered, []() {
+	//	QScreen* screen = QGuiApplication::primaryScreen();
+	//	if (screen) {
+	//		GetCoreInst().uilSetDPI(screen->logicalDotsPerInch());
+	//	}
+	//	});
+	//QObject::connect(menuSimulateDPI->addAction("96 100%"), &QAction::triggered, []() {
+	//	GetCoreInst().uilSetDPI(96);
+	//	});
+	//QObject::connect(menuSimulateDPI->addAction("120 125%"), &QAction::triggered, []() {
+	//	GetCoreInst().uilSetDPI(120);
+	//	});
+	//QObject::connect(menuSimulateDPI->addAction("144 150%"), &QAction::triggered, []() {
+	//	GetCoreInst().uilSetDPI(144);
+	//	});
+	//QObject::connect(menuSimulateDPI->addAction("168 175%"), &QAction::triggered, []() {
+	//	GetCoreInst().uilSetDPI(168);
+	//	});
+	//QObject::connect(menuSimulateDPI->addAction("192 200%"), &QAction::triggered, []() {
+	//	GetCoreInst().uilSetDPI(192);
+	//	});
+	menuBar->addAction(actionSpyTarget);
+	menuBar->addAction(actionReload);
+	menuBar->addAction(actionNameSearch);
+	menuBar->addAction(actionCursorSearch);
+	menuBar->addAction(actionCursorLocate);
+	menuBar->addMenu(menuSystem);
+	menuBar->addMenu(menuDebug);
+	menuBar->addMenu(menuResource);
+	menuBar->addMenu(menuColor);
+	menuBar->addMenu(menuSetting);
+	m_pMainWindow->setMenuBar(menuBar);
+
+
+
 	m_pMainWindow->raise();
 	m_pMainWindow->show();
 	return true;
 }
 
-bool CQtSpyObject::BuildSpyTree(QWidget* target)
+bool CQtSpyObject::setTreeTarget(QPoint pt)
 {
 	ClearSpyTree();
-	m_pMainWindow->setCentralWidget(new QWidget());
-	auto center = m_pMainWindow->centralWidget();
-	if (center) {
-		QVBoxLayout* rootlayout = new QVBoxLayout();
-		center->setLayout(rootlayout);
-		CWidgetSpyTree* tree = new CWidgetSpyTree();
-		m_pSpyTree = tree;
-		QTreeWidgetItem* rootNode = new QTreeWidgetItem();
-		tree->addTopLevelItem(rootNode);
-		rootlayout->addWidget(tree);
-		AddSubSpyNode(target, rootNode);
+
+	QWidget* target = QApplication::widgetAt(pt);
+
+	if (To<QGraphicsView>(target))
+	{
+		QGraphicsItem* item = To<QGraphicsView>(target)->scene()->itemAt(pt, QTransform());
+		setTreeTarget(item);
+	}
+	else
+	{
+		setTreeTarget(target);
 	}
 	return true;
+}
+
+bool CQtSpyObject::setTreeTarget(QGraphicsItem* target)
+{
+	ClearSpyTree();
+
+	m_pSpyViewItem = target;
+	m_pSpyWidget = nullptr;
+
+	QTreeWidgetItem* root = new QTreeWidgetItem;
+	m_pMainWindow->tree()->addTopLevelItem(root);
+	AddSubSpyNode(target, root);
+	return true;
+}
+
+bool CQtSpyObject::setTreeTarget(QWidget* target)
+{
+	ClearSpyTree();
+
+	m_pSpyWidget = target;
+	m_pSpyViewItem = nullptr;
+
+	QTreeWidgetItem* root = new QTreeWidgetItem;
+	m_pMainWindow->tree()->addTopLevelItem(root);
+	AddSubSpyNode(target, root);
 }
 
 bool CQtSpyObject::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
@@ -360,6 +379,21 @@ bool CQtSpyObject::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 	return true;
 };
 
+
+bool CQtSpyObject::AddSubSpyNode(QGraphicsItem* parent, QTreeWidgetItem* parentNode)
+{
+	if (parent && parentNode) {
+		parentNode->setText(0, WidgetString(parent));
+		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
+		QList<QWidget*> children = parent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+		for (QWidget* child : children) {
+			QTreeWidgetItem* treenode = new QTreeWidgetItem();
+			parentNode->addChild(treenode);
+			AddSubSpyNode(child, treenode);
+		}
+	}
+	return true;
+}
 
 bool CQtSpyObject::ShowSystemInfo()
 {
@@ -491,11 +525,7 @@ bool CQtSpyObject::CheckColor()
 
 bool CQtSpyObject::ClearSpyTree()
 {
-	auto center = m_pMainWindow->centralWidget();
-	if (center) {
-		m_pMainWindow->setCentralWidget(nullptr);
-		center->deleteLater();
-	}
+	m_pMainWindow->tree()->clear();
 	m_mapWidgetNode.clear();
 	return true;
 }

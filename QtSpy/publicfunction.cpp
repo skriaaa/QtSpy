@@ -42,36 +42,62 @@ QString WidgetClass(QWidget* pWidget)
 
 QString WidgetString(QWidget* pWidget)
 {
+	if (pWidget == nullptr)
+		return "";
 	QString strText;
-	if (pWidget) {
-		if (dynamic_cast<QDialog*>(pWidget)) {
-			auto typeWidget = dynamic_cast<QDialog*>(pWidget);
-			strText = typeWidget->windowTitle();
-		}
-		else if (dynamic_cast<QPushButton*>(pWidget)) {
-			auto typeWidget = dynamic_cast<QPushButton*>(pWidget);
-			strText = typeWidget->text();
-		}
-		else if (dynamic_cast<QLineEdit*>(pWidget)) {
-			auto typeWidget = dynamic_cast<QLineEdit*>(pWidget);
-			strText = typeWidget->text();
-		}
-		else if (dynamic_cast<QLabel*>(pWidget)) {
-			auto typeWidget = dynamic_cast<QLabel*>(pWidget);
-			strText = typeWidget->text();
-		}
-		else if (dynamic_cast<QComboBox*>(pWidget)) {
-			auto typeWidget = dynamic_cast<QComboBox*>(pWidget);
-			strText = typeWidget->windowTitle();
-		}
-		else {
-			strText = "widget";
-		}
+	if (dynamic_cast<QDialog*>(pWidget)) {
+		auto typeWidget = dynamic_cast<QDialog*>(pWidget);
+		strText = typeWidget->windowTitle();
 	}
+	else if (dynamic_cast<QPushButton*>(pWidget)) {
+		auto typeWidget = dynamic_cast<QPushButton*>(pWidget);
+		strText = typeWidget->text();
+	}
+	else if (dynamic_cast<QLineEdit*>(pWidget)) {
+		auto typeWidget = dynamic_cast<QLineEdit*>(pWidget);
+		strText = typeWidget->text();
+	}
+	else if (dynamic_cast<QLabel*>(pWidget)) {
+		auto typeWidget = dynamic_cast<QLabel*>(pWidget);
+		strText = typeWidget->text();
+	}
+	else if (dynamic_cast<QComboBox*>(pWidget)) {
+		auto typeWidget = dynamic_cast<QComboBox*>(pWidget);
+		strText = typeWidget->windowTitle();
+	}
+	else {
+		strText = "widget";
+	}
+
 	QString strWidgetInfo = QString("%1(%2)").arg(WidgetClass(pWidget)).arg(strText);
 	if (!pWidget->isVisible())
 	{
 		strWidgetInfo += "[hide]";
 	}
+
 	return strWidgetInfo;
+}
+
+QString GraphicsItemClass(QGraphicsItem* item)
+{
+	if (To<QObject>(item))
+	{
+		return To<QObject>(item)->metaObject()->className();
+	}
+
+	return "QGraphicsItem";
+}
+
+QString GraphicsItemName(QGraphicsItem* item)
+{
+	if (To<QObject>(item))
+	{
+		return (To<QObject>(item)->objectName());
+	}
+	return "";
+}
+
+QString GraphicsItemString(QGraphicsItem* item)
+{
+	return QString("%1(%2)").arg(GraphicsItemClass(item)).arg(GraphicsItemName(item));
 }

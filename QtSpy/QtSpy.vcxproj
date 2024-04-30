@@ -100,10 +100,12 @@
   <ItemGroup>
     <ClCompile Include="publicfunction.cpp" />
     <ClCompile Include="qt_spydlg.cpp" />
+    <ClCompile Include="qt_spygraphics.cpp" />
     <ClCompile Include="qt_spyobject.cpp" />
     <ClInclude Include="publicfunction.h" />
     <ClInclude Include="qtspy_global.h" />
     <ClInclude Include="qt_spydlg.h" />
+    <ClInclude Include="qt_spygraphics.h" />
     <ClInclude Include="qt_spyobject.h" />
     <ClInclude Include="qtspy.h" />
     <ClCompile Include="qtspy.cpp" />

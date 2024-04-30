@@ -1477,7 +1477,7 @@ bool CWidgetSpyTree::SpyParentWidget(const QPoint& pos)
 		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
 		QWidget* pParentWidget = dynamic_cast<QWidget*>(pTargetWidget->parent());
 		if (pParentWidget) {
-			CQtSpyObject::GetInstance().BuildSpyTree(pParentWidget);
+			CQtSpyObject::GetInstance().setTreeTarget(pParentWidget);
 		}
 	}
 	return true;
@@ -1494,7 +1494,7 @@ bool CWidgetSpyTree::SpyFirstParentWidget(const QPoint& pos)
 				while (pParent->parent()) {
 					pParent = pParent->parent();
 				}
-				CQtSpyObject::GetInstance().BuildSpyTree(dynamic_cast<QWidget*>(pParent));
+				CQtSpyObject::GetInstance().setTreeTarget(dynamic_cast<QWidget*>(pParent));
 			}
 		}
 	}
