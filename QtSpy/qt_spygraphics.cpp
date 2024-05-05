@@ -74,6 +74,7 @@ bool CViewSpyTree::eventFilter(QObject* obj, QEvent* event)
 		QMouseEvent* mouseEvent = dynamic_cast<QMouseEvent*>(event);
 		//IndicatorWidget(mouseEvent->globalPos());
 	}
+	return false;
 }
 
 void CGraphicsItemManager::setTargetView(QGraphicsView* target)

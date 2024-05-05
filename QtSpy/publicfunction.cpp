@@ -6,6 +6,9 @@
 #include <QLineEdit>
 #include <QLabel>
 #include <QComboBox>
+#include <QGraphicsView>
+#include <QGraphicsScene>
+#include <QGraphicsItem>
 QPoint MapToGlobal(QWidget* pWidget, QPoint pt)
 {
 	return pWidget->mapToGlobal(pt);
@@ -31,6 +34,15 @@ QRect ScreenRect(QWidget* pWidget)
 	auto geo = pWidget->geometry();
 	auto lt = pWidget->mapToGlobal(QPoint(0, 0));
 	auto rb = pWidget->mapToGlobal(QPoint(geo.width() - 1, geo.height() - 1));
+	QRect rcTarget(lt, rb);
+	return rcTarget;
+}
+
+QRect ScreenRect(QGraphicsItem* pItem)
+{
+	auto geo = pItem->sceneBoundingRect();
+	auto lt = pItem->scene()->views().front()->mapToGlobal(QPoint(0, 0));
+	auto rb = pItem->scene()->views().front()->mapToGlobal(QPoint(geo.width() - 1, geo.height() - 1));
 	QRect rcTarget(lt, rb);
 	return rcTarget;
 }

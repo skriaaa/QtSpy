@@ -40,6 +40,8 @@
 #include "publicfunction.h"
 #include <QThread>
 #include <QStackedLayout>
+#include <QGraphicsView>
+#include <QGraphicsItem>
 #include "qt_spygraphics.h"
 
 CSpyMainWindow::CSpyMainWindow()
@@ -327,9 +329,9 @@ bool CQtSpyObject::setTreeTarget(QPoint pt)
 
 	QWidget* target = QApplication::widgetAt(pt);
 
-	if (To<QGraphicsView>(target))
+	if (OTo<QGraphicsView>(target))
 	{
-		QGraphicsItem* item = To<QGraphicsView>(target)->scene()->itemAt(pt, QTransform());
+		QGraphicsItem* item = OTo<QGraphicsView>(target)->scene()->itemAt(pt, QTransform());
 		setTreeTarget(item);
 	}
 	else
@@ -362,6 +364,7 @@ bool CQtSpyObject::setTreeTarget(QWidget* target)
 	QTreeWidgetItem* root = new QTreeWidgetItem;
 	m_pMainWindow->tree()->addTopLevelItem(root);
 	AddSubSpyNode(target, root);
+	return true;
 }
 
 bool CQtSpyObject::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
@@ -383,10 +386,10 @@ bool CQtSpyObject::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 bool CQtSpyObject::AddSubSpyNode(QGraphicsItem* parent, QTreeWidgetItem* parentNode)
 {
 	if (parent && parentNode) {
-		parentNode->setText(0, WidgetString(parent));
+		parentNode->setText(0, GraphicsItemString(parent));
 		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
-		QList<QWidget*> children = parent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
-		for (QWidget* child : children) {
+		QList<QGraphicsItem*> children = parent->childItems();
+		for (QGraphicsItem* child : children) {
 			QTreeWidgetItem* treenode = new QTreeWidgetItem();
 			parentNode->addChild(treenode);
 			AddSubSpyNode(child, treenode);

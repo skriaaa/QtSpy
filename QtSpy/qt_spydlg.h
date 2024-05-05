@@ -43,7 +43,11 @@ public:
 	void ControlTarget(QWidget* pTargetWidget) {
 		m_pTargetWidget = pTargetWidget;
 	}
+	void GraphicsTarget(QGraphicsItem* pTargetItem) {
+		m_pTargetItem = pTargetItem;
+	}
 private:
+	QGraphicsItem* m_pTargetItem{ nullptr };
 	QWidget* m_pTargetWidget = nullptr;
 	QLineEdit* m_pEditMoveStep = nullptr;
 	QLineEdit* m_pEditScaleStep = nullptr;
@@ -84,9 +88,9 @@ public:
 	CSignalSpyWnd(QWidget* parent = nullptr);
 	~CSignalSpyWnd();
 
-	void setTargetWidget(QWidget* target);
+	void setTargetObject(QObject* target);
 private:
-	void ParseSignal(QWidget* widget);
+	void ParseSignal(QObject* object);
 
 	void initWidgets();
 
@@ -103,7 +107,7 @@ private:
 private:
 	QTableWidget* m_pSignalTable{ nullptr };
 	QTableWidget* m_pSlotTable{ nullptr };
-	QWidget* m_pTargetWidget{ nullptr };
+	QObject* m_pTargetObject{ nullptr };
 	std::map<QMetaMethod*, CSignalSpy*> m_arrSignal;
 	CLogTraceWnd* m_pTraceWnd{ nullptr };
 };
@@ -362,4 +366,7 @@ private:
 	bool SpyParentWidget(const QPoint& pos);
 
 	bool SpyFirstParentWidget(const QPoint& pos);
+
+	QGraphicsItem* graphicsData(QTreeWidgetItem* item);
+	QWidget* widgetData(QTreeWidgetItem* item);
 };

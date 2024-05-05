@@ -34,6 +34,7 @@
 #include <QTreeWidget>
 #include <QMetaMethod>
 #include <QTime>
+#include <QGraphicsItem>
 //#include "QtCore/5.14.2/QtCore/private/qobject_p.h"
 #include "publicfunction.h"
 
@@ -85,12 +86,18 @@ CMoveOrScaleWidgetWnd::CMoveOrScaleWidgetWnd(QWidget* parent /*= nullptr*/) : CX
 			rc.adjust(0, -m_nMoveStep, 0, -m_nMoveStep);
 			m_pTargetWidget->setGeometry(rc);
 		}
+		if (m_pTargetItem) {
+			m_pTargetItem->setY(m_pTargetItem->y() - 1);
+		}
 		});
 	QObject::connect(btnMoveDown, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
 			QRect rc = m_pTargetWidget->geometry();
 			rc.adjust(0, m_nMoveStep, 0, m_nMoveStep);
 			m_pTargetWidget->setGeometry(rc);
+		}
+		if (m_pTargetItem) {
+			m_pTargetItem->setY(m_pTargetItem->y() + 1);
 		}
 		});
 	QObject::connect(btnMoveLeft, &QPushButton::clicked, [&] {
@@ -99,12 +106,18 @@ CMoveOrScaleWidgetWnd::CMoveOrScaleWidgetWnd(QWidget* parent /*= nullptr*/) : CX
 			rc.adjust(-1 * m_nMoveStep, 0, -1 * m_nMoveStep, 0);
 			m_pTargetWidget->setGeometry(rc);
 		}
+		if (m_pTargetItem) {
+			m_pTargetItem->setY(m_pTargetItem->x() - 1);
+		}
 		});
 	QObject::connect(btnMoveRight, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
 			QRect rc = m_pTargetWidget->geometry();
 			rc.adjust(m_nMoveStep, 0, m_nMoveStep, 0);
 			m_pTargetWidget->setGeometry(rc);
+		}
+		if (m_pTargetItem) {
+			m_pTargetItem->setY(m_pTargetItem->x() + 1);
 		}
 		});
 	auto layout2 = new QHBoxLayout();
@@ -234,14 +247,19 @@ CSignalSpyWnd::~CSignalSpyWnd()
 	clearContent();
 }
 
-void CSignalSpyWnd::setTargetWidget(QWidget* target)
+void CSignalSpyWnd::setTargetObject(QObject* target)
 {
-	m_pTargetWidget = target;
-	setWindowTitle(WidgetString(target));
+	m_pTargetObject = target;
+	QString strText;
+	if(OTo<QWidget>(target))
+		strText = WidgetString(OTo<QWidget>(target));
+	if(OTo<QGraphicsItem>(target))
+		strText = GraphicsItemString(OTo<QGraphicsItem>(target));
+	setWindowTitle(strText);
 	setContent();
 }
 
-void CSignalSpyWnd::ParseSignal(QWidget* widget)
+void CSignalSpyWnd::ParseSignal(QObject* target)
 {
 	int row = m_pSignalTable->rowCount();
 	//QObjectPrivate* sp = QObjectPrivate::get(widget);
@@ -251,7 +269,7 @@ void CSignalSpyWnd::ParseSignal(QWidget* widget)
 	//}
 
 	QTableWidgetItem* item = new QTableWidgetItem;
-	auto fnQuerySignalSlot = [&](const QMetaObject* metaObject, QWidget* widget) {
+	auto fnQuerySignalSlot = [&](const QMetaObject* metaObject, QObject* widget) {
 		for (int i = metaObject->methodOffset(); i < metaObject->methodCount(); ++i) {
 			QMetaMethod method = metaObject->method(i);
 			QString strSignature1 = QString("%1::%2").arg(metaObject->className()).arg(QString(method.methodSignature()));
@@ -329,7 +347,7 @@ void CSignalSpyWnd::initContextMenu()
 				QMetaMethod* method = static_cast<QMetaMethod*>(item->data(Qt::UserRole).value<void*>());
 				if (m_arrSignal[method] == nullptr)
 				{
-					CSignalSpy* spy = new CSignalSpy(m_pTargetWidget, *method);
+					CSignalSpy* spy = new CSignalSpy(m_pTargetObject, *method);
 					spy->setTraceWnd(traceWnd());
 				}
 				traceWnd()->ShowOnTop();
@@ -341,7 +359,7 @@ void CSignalSpyWnd::initContextMenu()
 			{
 				if (item.second == nullptr)
 				{
-					item.second = new CSignalSpy(m_pTargetWidget, *item.first);
+					item.second = new CSignalSpy(m_pTargetObject, *item.first);
 					item.second->setTraceWnd(traceWnd());
 				}
 			}
@@ -388,7 +406,7 @@ void CSignalSpyWnd::setContent()
 		}
 	};
 
-	const QMetaObject* metaObject = m_pTargetWidget->metaObject();
+	const QMetaObject* metaObject = m_pTargetObject->metaObject();
 	while (metaObject)
 	{
 		fnQuerySignalSlot(metaObject);
@@ -1235,13 +1253,25 @@ void CWidgetSpyTree::ChangeWidgetVisible(QPoint ptGlobal)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
-		if (pTargetWidget) {
+		QWidget* pTargetWidget;
+		QGraphicsItem* pTargetItem;
+		if (pTargetWidget = widgetData(clickedItem)) {
 			if (pTargetWidget->isVisible()) {
 				pTargetWidget->setVisible(false);
 			}
 			else {
 				pTargetWidget->setVisible(true);
+			}
+		}
+		else if (pTargetItem = graphicsData(clickedItem))
+		{
+			if (pTargetItem->isVisible())
+			{
+				pTargetItem->hide();
+			}
+			else
+			{
+				pTargetItem->setVisible(true);
 			}
 		}
 	}
@@ -1251,13 +1281,25 @@ void CWidgetSpyTree::ChangeWidgetEnable(QPoint ptGlobal)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
-		if (pTargetWidget) {
+		QWidget* pTargetWidget;
+		QGraphicsItem* pTargetItem;
+		if (pTargetWidget = widgetData(clickedItem)) {
 			if (pTargetWidget->isEnabled()) {
 				pTargetWidget->setEnabled(false);
 			}
 			else {
 				pTargetWidget->setEnabled(true);
+			}
+		}
+		else if (pTargetItem = graphicsData(clickedItem))
+		{
+			if (pTargetItem->isEnabled())
+			{
+				pTargetItem->setEnabled(false);
+			}
+			else
+			{
+				pTargetItem->setEnabled(true);
 			}
 		}
 	}
@@ -1267,10 +1309,16 @@ void CWidgetSpyTree::ChangeWidgetPosOrSize(QPoint ptGlobal)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
+		QWidget* pTargetWidget = widgetData(clickedItem);
+		QGraphicsItem* pTargetItem = graphicsData(clickedItem);
 		if (pTargetWidget) {
 			CMoveOrScaleWidgetWnd* window = new CMoveOrScaleWidgetWnd();
 			window->ControlTarget(pTargetWidget);
+			window->ShowOnTop();
+		}
+		if (pTargetItem) {
+			CMoveOrScaleWidgetWnd* window = new CMoveOrScaleWidgetWnd();
+			window->GraphicsTarget(pTargetItem);
 			window->ShowOnTop();
 		}
 	}
@@ -1280,10 +1328,20 @@ void CWidgetSpyTree::IndicatorWidget(QPoint ptGlobal)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
+		QWidget* pTargetWidget = widgetData(clickedItem);
+		QGraphicsItem* pTargetItem = graphicsData(clickedItem);
+		QRect rcArea;
+		if (pTargetWidget)
+		{
+			rcArea = ScreenRect(pTargetWidget);
+		}
+		if (pTargetItem)
+		{
+			rcArea = ScreenRect(pTargetItem);
+		}
+
 		CSpyIndicatorWnd* pIndicator = new CSpyIndicatorWnd();
-		pIndicator->setGeometry(ScreenRect(pTargetWidget));
-		pIndicator->setGeometry(ScreenRect(pTargetWidget));
+		pIndicator->setGeometry(rcArea);
 		pIndicator->show();
 		pIndicator->raise();
 	}
@@ -1293,10 +1351,18 @@ void CWidgetSpyTree::ShowSignalSlot(QPoint ptGlobal, bool bRecusive /*= false*/)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
+		QWidget* pTargetWidget = widgetData(clickedItem);
+		QGraphicsItem* pItem = graphicsData(clickedItem);
 
 		CSignalSpyWnd* pSpy = new CSignalSpyWnd();
-		pSpy->setTargetWidget(pTargetWidget);
+		if (pTargetWidget)
+		{
+			pSpy->setTargetObject(pTargetWidget);
+		}
+		else
+		{
+			pSpy->setTargetObject(To<QObject>(pItem));
+		}
 		pSpy->ShowOnTop();
 	}
 }
@@ -1499,4 +1565,14 @@ bool CWidgetSpyTree::SpyFirstParentWidget(const QPoint& pos)
 		}
 	}
 	return true;
+}
+
+QGraphicsItem* CWidgetSpyTree::graphicsData(QTreeWidgetItem* item)
+{
+	return item->data(0, Qt::UserRole).value<QGraphicsItem*>();
+}
+
+QWidget* CWidgetSpyTree::widgetData(QTreeWidgetItem* item)
+{
+	return item->data(0, Qt::UserRole).value<QWidget*>();
 }
