@@ -47,7 +47,7 @@ void CViewSpyTree::addSubNode(QGraphicsItem* item, QTreeWidgetItem* parentNode)
 
 void CViewSpyTree::showContextMenu(QPoint pos)
 {
-	QMenu menu(this);
+	QMenu contextMenu(this);
 	QAction* actionLocate = contextMenu.addAction("目标定位");
 	QAction* actionInfo = contextMenu.addAction("基础信息");
 	QAction* actionSignal = contextMenu.addAction("信号/槽");

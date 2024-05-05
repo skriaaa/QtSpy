@@ -31,8 +31,12 @@
 *.out
 *.app
 
-/.vs
+/QtSpy/.vs
 /Debug
+/QtSpy/x64
+/QtSpy/.qt
+/QtSpy/QtSpy.dir
+/QtSpy/CMakeFiles
 
 *.user
 *.filters
@@ -40,4 +44,11 @@
 *.lib
 *.sln
 *.zip
+*.vcxproj
 
+
+*.vcxproj
+*.vcxproj
+QtSpy/QtSpy.vcxproj
+*.txt
+QtSpy/cmake_install.cmake
