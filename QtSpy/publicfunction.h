@@ -18,15 +18,11 @@ QRect MapFromGlobal(QWidget* pWidget, QRect rc);
 QRect ScreenRect(QWidget* pWidget);
 QRect ScreenRect(QGraphicsItem* pItem);
 
-QString WidgetClass(QWidget* pWidget);
+QString objectClass(QObject* object);
 
-QString WidgetString(QWidget* pWidget);
+QString objectName(QObject* object);
 
-QString GraphicsItemClass(QGraphicsItem* item);
-
-QString GraphicsItemName(QGraphicsItem* item);
-
-QString GraphicsItemString(QGraphicsItem* item);
+QString ObjectString(QObject* pWidget);
 
 template< class T>
 T* To(QGraphicsItem* p) {

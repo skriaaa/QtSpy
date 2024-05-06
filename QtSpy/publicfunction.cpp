@@ -33,83 +33,76 @@ QRect ScreenRect(QWidget* pWidget)
 {
 	auto geo = pWidget->geometry();
 	auto lt = pWidget->mapToGlobal(QPoint(0, 0));
-	auto rb = pWidget->mapToGlobal(QPoint(geo.width() - 1, geo.height() - 1));
-	QRect rcTarget(lt, rb);
-	return rcTarget;
+	return QRect(lt, QSize(geo.width(), geo.height()));
 }
 
 QRect ScreenRect(QGraphicsItem* pItem)
 {
 	auto geo = pItem->sceneBoundingRect();
-	auto lt = pItem->scene()->views().front()->mapToGlobal(QPoint(0, 0));
-	auto rb = pItem->scene()->views().front()->mapToGlobal(QPoint(geo.width() - 1, geo.height() - 1));
-	QRect rcTarget(lt, rb);
-	return rcTarget;
+	auto lt = pItem->scene()->views().front()->mapToGlobal(QPoint(geo.left(), geo.top()));
+	return QRect(lt, QSize(geo.width(), geo.height()));
 }
 
-QString WidgetClass(QWidget* pWidget)
+QString objectClass(QObject* object)
 {
-	return pWidget->metaObject()->className();
+	if (object)
+	{
+		return object->metaObject()->className();
+	}
+	return QString();
+}
+QString objectName(QObject* object)
+{
+	if (object)
+	{
+		return object->objectName();
+	}
+	return QString();
 }
 
-QString WidgetString(QWidget* pWidget)
+QString ObjectString(QObject* object)
 {
-	if (pWidget == nullptr)
+	if (object == nullptr)
 		return "";
+
 	QString strText;
-	if (dynamic_cast<QDialog*>(pWidget)) {
-		auto typeWidget = dynamic_cast<QDialog*>(pWidget);
-		strText = typeWidget->windowTitle();
-	}
-	else if (dynamic_cast<QPushButton*>(pWidget)) {
-		auto typeWidget = dynamic_cast<QPushButton*>(pWidget);
-		strText = typeWidget->text();
-	}
-	else if (dynamic_cast<QLineEdit*>(pWidget)) {
-		auto typeWidget = dynamic_cast<QLineEdit*>(pWidget);
-		strText = typeWidget->text();
-	}
-	else if (dynamic_cast<QLabel*>(pWidget)) {
-		auto typeWidget = dynamic_cast<QLabel*>(pWidget);
-		strText = typeWidget->text();
-	}
-	else if (dynamic_cast<QComboBox*>(pWidget)) {
-		auto typeWidget = dynamic_cast<QComboBox*>(pWidget);
-		strText = typeWidget->windowTitle();
-	}
-	else {
-		strText = "widget";
-	}
-
-	QString strWidgetInfo = QString("%1(%2)").arg(WidgetClass(pWidget)).arg(strText);
-	if (!pWidget->isVisible())
+	if (OTo<QWidget>(object))
 	{
-		strWidgetInfo += "[hide]";
+		if (dynamic_cast<QDialog*>(object)) {
+			auto typeWidget = dynamic_cast<QDialog*>(object);
+			strText = typeWidget->windowTitle();
+		}
+		else if (dynamic_cast<QPushButton*>(object)) {
+			auto typeWidget = dynamic_cast<QPushButton*>(object);
+			strText = typeWidget->text();
+		}
+		else if (dynamic_cast<QLineEdit*>(object)) {
+			auto typeWidget = dynamic_cast<QLineEdit*>(object);
+			strText = typeWidget->text();
+		}
+		else if (dynamic_cast<QLabel*>(object)) {
+			auto typeWidget = dynamic_cast<QLabel*>(object);
+			strText = typeWidget->text();
+		}
+		else if (dynamic_cast<QComboBox*>(object)) {
+			auto typeWidget = dynamic_cast<QComboBox*>(object);
+			strText = typeWidget->windowTitle();
+		}
+		else {
+			strText = "widget";
+		}
 	}
-
-	return strWidgetInfo;
-}
-
-QString GraphicsItemClass(QGraphicsItem* item)
-{
-	if (To<QObject>(item))
+	else if (OTo<QGraphicsItem>(object))
 	{
-		return To<QObject>(item)->metaObject()->className();
+		strText = "graphicsItem";
 	}
 
-	return "QGraphicsItem";
-}
-
-QString GraphicsItemName(QGraphicsItem* item)
-{
-	if (To<QObject>(item))
+	QString strItemInfo = QString("%1(%2)").arg(objectClass(object)).arg(strText);
+	if (OTo<QWidget>(object) && !OTo<QWidget>(object)->isVisible()
+		|| OTo<QGraphicsItem>(object) && !OTo<QGraphicsItem>(object)->isVisible())
 	{
-		return (To<QObject>(item)->objectName());
+		strItemInfo += "[hide]";
 	}
-	return "";
-}
 
-QString GraphicsItemString(QGraphicsItem* item)
-{
-	return QString("%1(%2)").arg(GraphicsItemClass(item)).arg(GraphicsItemName(item));
+	return strItemInfo;
 }

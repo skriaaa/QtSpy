@@ -53,3 +53,5 @@ QtSpy/QtSpy.vcxproj
 *.txt
 QtSpy/cmake_install.cmake
 /.vs
+/QtSpy/Win32
+/QtSpy/Debug

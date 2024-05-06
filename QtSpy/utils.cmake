@@ -27,11 +27,11 @@ macro(ENABLE_VISUALSTUDIO_DEBUG)
 endmacro()
 
 macro(ENABLE_QTCREATOR_DEBUG)
-    if(PLATFORMTYPE STREQUAL "Windows")
+    #if(PLATFORMTYPE STREQUAL "Windows")
         set(CMAKE_BUILD_TYPE "Debug")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Od")
-    endif()
+    #endif()
 endmacro()
 
 macro(AS_SUBSYSTEM_WINDOWS)
@@ -41,9 +41,9 @@ macro(AS_SUBSYSTEM_WINDOWS)
 endmacro()
 
 macro(USE_CHARSET_UNICODE)
-    if(PLATFORMTYPE STREQUAL "Windows")
+    #if(PLATFORMTYPE STREQUAL "Windows")
         add_definitions(-DUNICODE -D_UNICODE)
-    endif()
+    #endif()
 endmacro()
 
 macro(USE_CHARSET_MBCS)    
@@ -53,9 +53,9 @@ macro(USE_CHARSET_MBCS)
 endmacro()
 
 macro(USE_EXECUTE_CHARSET_UTF8)
-    if(PLATFORMTYPE STREQUAL "Windows")
+    #if(PLATFORMTYPE STREQUAL "Windows")
         add_definitions("/utf-8")
-    endif()
+    #endif()
 endmacro()
 
 # resource file auto create
@@ -97,7 +97,8 @@ macro(GENERAL_CONFIGURATION)
 		set(BUILD_GENERATOR_NAME "Visual Studio 16 2019")
 		set(CMAKE_BUILD_TYPE "Debug")
 		set(CMAKE_INSTALL_CONFIG_NAME "Debug")
-		set(QTCMAKE_PATH "E:/Develop/tookits/Qt/6.5.3/msvc2019_64")
+		#set(QTCMAKE_PATH "E:/Develop/tookits/Qt/6.5.3/msvc2019_64")
+		set(QTCMAKE_PATH "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017/bin")
 	elseif(PLATFORMTYPE STREQUAL "Linux")
 		# 在 Linux 平台上的逻辑
 		set(BUILD_GENERATOR_NAME "Unix Makefiles")
@@ -166,6 +167,8 @@ function(setGeneralConfiguration)
 	ENABLE_QTCREATOR_DEBUG()
 	
 	# Qt版本
-	set(QT_VERSION_MAJOR 6 PARENT_SCOPE)
+	set(QT_VERSION_MAJOR 5 PARENT_SCOPE)
 	
 endfunction()
+
+#  cmake . -DPLATFORMTYPE:STRING=Windows -A Win32

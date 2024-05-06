@@ -9,6 +9,8 @@ project(QtSpy LANGUAGES CXX)
 # set generalConfiguration
 setGeneralConfiguration()
 	
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "E:/code/choice/lib/windows")
+	
 # build project
 buildProject(STATIC)
 
@@ -20,4 +22,5 @@ linkQtModule(Core)
 # 包含工程目录
 INCLUDECURRENTDIR()
 
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../bin)
+#set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../bin)
+

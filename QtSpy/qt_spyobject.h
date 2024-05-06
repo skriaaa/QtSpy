@@ -64,6 +64,5 @@ private:
 	QWidget* m_pSpyWidget;
 	QGraphicsItem* m_pSpyViewItem{nullptr};
 	std::map<QWidget*, QTreeWidgetItem*> m_mapWidgetNode;
-	QTreeWidget* m_pSpyTree;
 	EScreenMouseAction m_eCursorAction = EScreenMouseAction::None;
 };

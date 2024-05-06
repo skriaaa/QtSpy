@@ -50,7 +50,7 @@ CSpyMainWindow::CSpyMainWindow()
 	if (layout()) {
 		layout()->setContentsMargins(0, 0, 0, 0);
 	}
-	setWindowFlag(Qt::WindowStaysOnTopHint);
+	//setWindowFlag(Qt::WindowStaysOnTopHint);
 	setWindowFlags(windowFlags() & ~Qt::WindowCloseButtonHint);
 }
 
@@ -134,7 +134,7 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 					if (m_pSpyWidget) {
 						for (auto it : m_mapWidgetNode) {
 							if (it.first == pTarget) {
-								m_pSpyTree->setCurrentItem(it.second);
+								m_pMainWindow->tree()->setCurrentItem(it.second);
 							}
 						}
 					}
@@ -183,7 +183,6 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 CQtSpyObject::CQtSpyObject()
 {
 	m_pSpyWidget = nullptr;
-	m_pSpyTree = nullptr;
 	m_pMainWindow = new CSpyMainWindow();
 }
 
@@ -317,7 +316,7 @@ bool CQtSpyObject::initToolWindow()
 	m_pMainWindow->setMenuBar(menuBar);
 
 
-
+	m_pMainWindow->initWindow();
 	m_pMainWindow->raise();
 	m_pMainWindow->show();
 	return true;
@@ -370,13 +369,26 @@ bool CQtSpyObject::setTreeTarget(QWidget* target)
 bool CQtSpyObject::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 	if (parent && parentNode) {
 		m_mapWidgetNode.insert(std::make_pair(parent, parentNode));
-		parentNode->setText(0, WidgetString(parent));
+		parentNode->setText(0, ObjectString(parent));
 		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
 		QList<QWidget*> children = parent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
 		for (QWidget* child : children) {
 			QTreeWidgetItem* treenode = new QTreeWidgetItem();
 			parentNode->addChild(treenode);
 			AddSubSpyNode(child, treenode);
+		}
+		if (OTo<QGraphicsView>(parent))
+		{
+			auto arrItems = OTo<QGraphicsView>(parent)->items();
+			for (QGraphicsItem* item : arrItems)
+			{
+				if (item->parentItem() == nullptr)
+				{
+					QTreeWidgetItem* treenode = new QTreeWidgetItem();
+					parentNode->addChild(treenode);
+					AddSubSpyNode(item, treenode);
+				}
+			}
 		}
 	}
 	return true;
@@ -386,7 +398,7 @@ bool CQtSpyObject::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 bool CQtSpyObject::AddSubSpyNode(QGraphicsItem* parent, QTreeWidgetItem* parentNode)
 {
 	if (parent && parentNode) {
-		parentNode->setText(0, GraphicsItemString(parent));
+		parentNode->setText(0, ObjectString(To<QObject>(parent)));
 		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
 		QList<QGraphicsItem*> children = parent->childItems();
 		for (QGraphicsItem* child : children) {
@@ -475,7 +487,7 @@ bool CQtSpyObject::SearchSpyTreeByName()
 		if (m_pSpyWidget) {
 			for (auto it : m_mapWidgetNode) {
 				if (it.first->objectName().compare(name) == 0) {
-					m_pSpyTree->setCurrentItem(it.second);
+					m_pMainWindow->tree()->setCurrentItem(it.second);
 				}
 			}
 		}

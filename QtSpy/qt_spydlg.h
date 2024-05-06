@@ -155,10 +155,10 @@ class CEventTraceWnd : public CLogTraceWnd {
 public:
 	CEventTraceWnd(QWidget* parent = nullptr);
 public:
-	bool MonitorWidget(QWidget* pWidget);
+	bool MonitorWidget(QObject* pWidget);
 	bool AddInfo(QEvent* event);
 public:
-	QWidget* m_pMonitorWidget;
+	QObject* m_pMonitorObject;
 protected:
 	bool eventFilter(QObject* pObject, QEvent* event) override;
 private:

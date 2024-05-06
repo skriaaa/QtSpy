@@ -35,6 +35,8 @@
 #include <QMetaMethod>
 #include <QTime>
 #include <QGraphicsItem>
+#include <QGraphicsView>
+#include <QGraphicsScene>
 //#include "QtCore/5.14.2/QtCore/private/qobject_p.h"
 #include "publicfunction.h"
 
@@ -250,11 +252,8 @@ CSignalSpyWnd::~CSignalSpyWnd()
 void CSignalSpyWnd::setTargetObject(QObject* target)
 {
 	m_pTargetObject = target;
-	QString strText;
-	if(OTo<QWidget>(target))
-		strText = WidgetString(OTo<QWidget>(target));
-	if(OTo<QGraphicsItem>(target))
-		strText = GraphicsItemString(OTo<QGraphicsItem>(target));
+	QString strText = ObjectString(target);
+
 	setWindowTitle(strText);
 	setContent();
 }
@@ -574,17 +573,17 @@ void CLogTraceWnd::initWidgets()
 CEventTraceWnd::CEventTraceWnd(QWidget* parent /*= nullptr*/) : CLogTraceWnd(parent)
 {
 	setAttribute(Qt::WA_DeleteOnClose);
-	m_pMonitorWidget = nullptr;
+	m_pMonitorObject = nullptr;
 }
 
-bool CEventTraceWnd::MonitorWidget(QWidget* pWidget)
+bool CEventTraceWnd::MonitorWidget(QObject* object)
 {
-	if (pWidget) {
-		m_pMonitorWidget = pWidget;
-		m_pMonitorWidget->installEventFilter(this);
+	if (object) {
+		m_pMonitorObject = object;
+		m_pMonitorObject->installEventFilter(this);
 		QObject::connect(this, &QDialog::close, [&]() {
-			if (m_pMonitorWidget) {
-				m_pMonitorWidget->removeEventFilter(this);
+			if (m_pMonitorObject) {
+				m_pMonitorObject->removeEventFilter(this);
 			}
 			});
 		return true;
@@ -600,7 +599,7 @@ bool CEventTraceWnd::AddInfo(QEvent* event)
 
 bool CEventTraceWnd::eventFilter(QObject* pObject, QEvent* event)
 {
-	if (dynamic_cast<QWidget*>(pObject) == m_pMonitorWidget) {
+	if (pObject == m_pMonitorObject) {
 		AddInfo(event);
 	}
 	return QDialog::eventFilter(pObject, event);
@@ -1308,15 +1307,13 @@ void CWidgetSpyTree::ChangeWidgetEnable(QPoint ptGlobal)
 void CWidgetSpyTree::ChangeWidgetPosOrSize(QPoint ptGlobal)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
-	if (clickedItem) {
-		QWidget* pTargetWidget = widgetData(clickedItem);
-		QGraphicsItem* pTargetItem = graphicsData(clickedItem);
-		if (pTargetWidget) {
+	if (clickedItem) {	
+		if (QWidget* pTargetWidget = widgetData(clickedItem)) {
 			CMoveOrScaleWidgetWnd* window = new CMoveOrScaleWidgetWnd();
 			window->ControlTarget(pTargetWidget);
 			window->ShowOnTop();
 		}
-		if (pTargetItem) {
+		else if (QGraphicsItem* pTargetItem = graphicsData(clickedItem)) {
 			CMoveOrScaleWidgetWnd* window = new CMoveOrScaleWidgetWnd();
 			window->GraphicsTarget(pTargetItem);
 			window->ShowOnTop();
@@ -1340,6 +1337,17 @@ void CWidgetSpyTree::IndicatorWidget(QPoint ptGlobal)
 			rcArea = ScreenRect(pTargetItem);
 		}
 
+		if (rcArea.isEmpty())
+		{
+			if (rcArea.width() == 0)
+			{
+				rcArea.setWidth(50);
+			}
+			if (rcArea.height() == 0)
+			{
+				rcArea.setHeight(50);
+			}
+		}
 		CSpyIndicatorWnd* pIndicator = new CSpyIndicatorWnd();
 		pIndicator->setGeometry(rcArea);
 		pIndicator->show();
@@ -1371,8 +1379,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
-		if (pTargetWidget) {
+		if (QWidget* pTargetWidget = widgetData(clickedItem)) {
 			auto geo = pTargetWidget->geometry();
 			auto geoScreen = ScreenRect(pTargetWidget);
 			auto client = pTargetWidget->rect();
@@ -1381,8 +1388,8 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 				nUniqueId = dynamic_cast<QWidget*>(pTargetWidget)->winId();
 			}
 			CListInfoWnd* pInfo = new CListInfoWnd();
-			pInfo->setWindowTitle(WidgetString(pTargetWidget));
-			pInfo->AddAttribute(_QStr("class name"), WidgetClass(pTargetWidget));
+			pInfo->setWindowTitle(ObjectString(pTargetWidget));
+			pInfo->AddAttribute(_QStr("class name"), objectClass(pTargetWidget));
 			pInfo->AddAttribute(_QStr("object name"), pTargetWidget->objectName());
 			pInfo->AddAttribute(_QStr("geometry"), QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
 			pInfo->AddAttribute(_QStr("screen geometry"), QString("(%1,%2,%3,%4)").arg(geoScreen.left()).arg(geoScreen.top()).arg(geoScreen.right()).arg(geoScreen.bottom()));
@@ -1396,6 +1403,24 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 			pInfo->AddAttribute(_QStr("winid"), QString("%1").arg(pTargetWidget->winId()));
 			pInfo->ShowOnTop();
 		}
+		else if (QGraphicsItem* pItem = graphicsData(clickedItem))
+		{
+			auto geo = pItem->sceneBoundingRect();
+			auto geoScreen = ScreenRect(pItem);
+			auto client = pItem->boundingRect();
+			int nUniqueId = -1;
+			CListInfoWnd* pInfo = new CListInfoWnd();
+			pInfo->setWindowTitle(ObjectString(To<QObject>(pItem)));
+			pInfo->AddAttribute(_QStr("class name"), objectClass(To<QObject>(pItem)));
+			pInfo->AddAttribute(_QStr("object name"), To<QObject>(pItem)->objectName());
+			pInfo->AddAttribute(_QStr("geometry"), QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
+			pInfo->AddAttribute(_QStr("screen geometry"), QString("(%1,%2,%3,%4)").arg(geoScreen.left()).arg(geoScreen.top()).arg(geoScreen.right()).arg(geoScreen.bottom()));
+			pInfo->AddAttribute(_QStr("geometry size"), QString("(%1,%2)").arg(geoScreen.width()).arg(geoScreen.height()));
+			pInfo->AddAttribute(_QStr("client"), QString("(%1,%2,%3,%4)").arg(client.left()).arg(client.top()).arg(client.right()).arg(client.bottom()));
+			pInfo->AddAttribute(_QStr("visible"), pItem->isVisible() ? _QStr("yes") : _QStr("no"));
+			pInfo->AddAttribute(_QStr("enabled"), pItem->isEnabled() ? _QStr("yes") : _QStr("no"));
+			pInfo->ShowOnTop();
+		}
 	}
 	return true;
 }
@@ -1404,10 +1429,10 @@ bool CWidgetSpyTree::ShowWidgetStatus(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
+		QWidget* pTargetWidget = widgetData(clickedItem);
 		if (pTargetWidget) {
 			CListInfoWnd* pInfo = new CListInfoWnd();
-			pInfo->setWindowTitle(WidgetString(pTargetWidget));
+			pInfo->setWindowTitle(ObjectString(pTargetWidget));
 			QStyleOption option;
 			option.initFrom(pTargetWidget);
 			struct TItem {
@@ -1501,10 +1526,11 @@ bool CWidgetSpyTree::ShowEventTrace(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
+		QWidget* pTargetWidget = widgetData(clickedItem);
+		QObject* pTarget = widgetData(clickedItem) ? widgetData(clickedItem) : To<QObject>(graphicsData(clickedItem));
 		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd();
-		pEventTraceWnd->setWindowTitle(WidgetString(pTargetWidget));
-		pEventTraceWnd->MonitorWidget(pTargetWidget);
+		pEventTraceWnd->setWindowTitle(ObjectString(pTarget));
+		pEventTraceWnd->MonitorWidget(pTarget);
 		pEventTraceWnd->ShowOnTop();
 	}
 	return true;
@@ -1514,7 +1540,7 @@ bool CWidgetSpyTree::ShowUserDrawParam(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
+		QWidget* pTargetWidget = widgetData(clickedItem);
 		//CUserDrawParamWnd* pEditStyleWnd = new CUserDrawParamWnd();
 		//pEditStyleWnd->setWindowTitle(WidgetString(pTargetWidget));
 		//pEditStyleWnd->InitFromWidget(pTargetWidget);
@@ -1527,9 +1553,9 @@ bool CWidgetSpyTree::ShowStyleEdit(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
+		QWidget* pTargetWidget = widgetData(clickedItem);
 		CStyleEditWnd* pEditStyleWnd = new CStyleEditWnd();
-		pEditStyleWnd->setWindowTitle(WidgetString(pTargetWidget));
+		pEditStyleWnd->setWindowTitle(ObjectString(pTargetWidget));
 		pEditStyleWnd->EditWidgetStyle(pTargetWidget);
 		pEditStyleWnd->ShowOnTop();
 	}
@@ -1540,10 +1566,18 @@ bool CWidgetSpyTree::SpyParentWidget(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
-		QWidget* pParentWidget = dynamic_cast<QWidget*>(pTargetWidget->parent());
-		if (pParentWidget) {
-			CQtSpyObject::GetInstance().setTreeTarget(pParentWidget);
+		if (widgetData(clickedItem)) {
+			CQtSpyObject::GetInstance().setTreeTarget(OTo<QWidget>(widgetData(clickedItem)->parent()));
+		}
+		else if (auto item = graphicsData(clickedItem)) {
+			if (item->parentItem())
+			{
+				CQtSpyObject::GetInstance().setTreeTarget(item->parentItem());
+			}
+			else
+			{
+				CQtSpyObject::GetInstance().setTreeTarget(item->scene()->views().front());
+			}
 		}
 	}
 	return true;
@@ -1553,8 +1587,7 @@ bool CWidgetSpyTree::SpyFirstParentWidget(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
-		QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
-		if (pTargetWidget) {
+		if (QWidget* pTargetWidget = widgetData(clickedItem)) {
 			QObject* pParent = pTargetWidget->parent();
 			if (pParent) {
 				while (pParent->parent()) {
@@ -1562,6 +1595,10 @@ bool CWidgetSpyTree::SpyFirstParentWidget(const QPoint& pos)
 				}
 				CQtSpyObject::GetInstance().setTreeTarget(dynamic_cast<QWidget*>(pParent));
 			}
+		}
+		else if (QGraphicsItem* item = graphicsData(clickedItem))
+		{
+			CQtSpyObject::GetInstance().setTreeTarget(item->scene()->views().front());
 		}
 	}
 	return true;
