@@ -572,20 +572,35 @@ void CLogTraceWnd::initWidgets()
 
 CEventTraceWnd::CEventTraceWnd(QWidget* parent /*= nullptr*/) : CLogTraceWnd(parent)
 {
-	setAttribute(Qt::WA_DeleteOnClose);
+	setAttribute(Qt::WA_DeleteOnClose, true);
 	m_pMonitorObject = nullptr;
+}
+
+CEventTraceWnd::~CEventTraceWnd()
+{
+	if (m_pGraphicsSpy)
+	{
+		delete m_pGraphicsSpy;
+	}
 }
 
 bool CEventTraceWnd::MonitorWidget(QObject* object)
 {
 	if (object) {
-		m_pMonitorObject = object;
-		m_pMonitorObject->installEventFilter(this);
-		QObject::connect(this, &QDialog::close, [&]() {
-			if (m_pMonitorObject) {
-				m_pMonitorObject->removeEventFilter(this);
-			}
-			});
+		if (OTo<QGraphicsItem>(object))
+		{
+			m_pGraphicsSpy = new CGraphicsItemSpy(OTo<QGraphicsItem>(object), this);
+		}
+		else
+		{
+			m_pMonitorObject = object;
+			m_pMonitorObject->installEventFilter(this);
+			QObject::connect(this, &QDialog::close, [&]() {
+				if (m_pMonitorObject) {
+					m_pMonitorObject->removeEventFilter(this);
+				}
+				});
+		}
 		return true;
 	}
 	return false;
@@ -603,6 +618,14 @@ bool CEventTraceWnd::eventFilter(QObject* pObject, QEvent* event)
 		AddInfo(event);
 	}
 	return QDialog::eventFilter(pObject, event);
+}
+
+bool CGraphicsItemSpy::sceneEventFilter(QGraphicsItem* watched, QEvent* event)
+{
+	if (watched == m_pTarget) {
+		m_pWnd->AddInfo(event);
+	}
+	return QGraphicsItem::sceneEventFilter(watched, event);
 }
 
 QString CEventTraceWnd::EventInfo(QEvent* event)

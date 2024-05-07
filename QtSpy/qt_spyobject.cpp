@@ -82,8 +82,9 @@ void CSpyMainWindow::setMenuBar(QMenuBar* menuBar)
 
 void CSpyMainWindow::keyPressEvent(QKeyEvent* event)
 {
-	if (event->type() == Qt::Key_Escape)
+	if (event->key() == Qt::Key_Escape)
 	{
+		event->ignore();
 		return;
 	}
 	QDialog::keyPressEvent(event);

@@ -8,6 +8,8 @@
 #include <QStringListModel>
 #include <qt_spyobject.h>
 #include <QSignalSpy>
+#include <QGraphicsScene>
+#include <QGraphicsItem>
 #include <map>
 #define _QStr(str) (str)
 class QListView;
@@ -151,9 +153,24 @@ public:
 	bool	m_bTrace{ true };
 };
 
-class CEventTraceWnd : public CLogTraceWnd {
+class CEventTraceWnd;
+class CGraphicsItemSpy :public QGraphicsItem
+{
+public:
+	CGraphicsItemSpy(QGraphicsItem* target, CEventTraceWnd* wnd) :m_pTarget(target), m_pWnd(wnd) { m_pTarget->scene()->addItem(this); m_pTarget->installSceneEventFilter(this); }
+	~CGraphicsItemSpy() { m_pTarget->removeSceneEventFilter(this); m_pTarget->scene()->removeItem(this); }
+public:
+	void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget /* = nullptr */) override { Q_UNUSED(painter); Q_UNUSED(option); Q_UNUSED(widget) }
+	QRectF boundingRect() const override { return QRectF(); }
+	bool sceneEventFilter(QGraphicsItem* watched, QEvent* event) override;
+private:
+	QGraphicsItem* m_pTarget;
+	CEventTraceWnd* m_pWnd;
+};
+class CEventTraceWnd : public CLogTraceWnd{
 public:
 	CEventTraceWnd(QWidget* parent = nullptr);
+	~CEventTraceWnd();
 public:
 	bool MonitorWidget(QObject* pWidget);
 	bool AddInfo(QEvent* event);
@@ -163,6 +180,7 @@ protected:
 	bool eventFilter(QObject* pObject, QEvent* event) override;
 private:
 	QString EventInfo(QEvent* event);
+	CGraphicsItemSpy* m_pGraphicsSpy{ nullptr };
 };
 
 class CStyleEditWnd : public CXDialog {
