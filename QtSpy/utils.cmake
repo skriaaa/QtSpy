@@ -27,11 +27,11 @@ macro(ENABLE_VISUALSTUDIO_DEBUG)
 endmacro()
 
 macro(ENABLE_QTCREATOR_DEBUG)
-    #if(PLATFORMTYPE STREQUAL "Windows")
+    if(PLATFORMTYPE STREQUAL "Windows")
         set(CMAKE_BUILD_TYPE "Debug")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zi")
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Od")
-    #endif()
+    endif()
 endmacro()
 
 macro(AS_SUBSYSTEM_WINDOWS)
@@ -53,9 +53,9 @@ macro(USE_CHARSET_MBCS)
 endmacro()
 
 macro(USE_EXECUTE_CHARSET_UTF8)
-    #if(PLATFORMTYPE STREQUAL "Windows")
+    if(PLATFORMTYPE STREQUAL "Windows")
         add_definitions("/utf-8")
-    #endif()
+    endif()
 endmacro()
 
 # resource file auto create
@@ -112,12 +112,40 @@ macro(INCLUDECURRENTDIR)
 	target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 endmacro()
 
+set(appendSysValue "" "")
+
+# 将路径添加到系统环境变量中 没搞好，回头再搞
+macro(addPathToSysVar targetPath varName)
+	#message("appendSysValue is ${appendSysValue}")
+	#set(newValue "${appendSysValue};${targetPath}")
+	#set(appendSysValue ${newValue} PARENT_SCOPE)
+	#message("modvalue is ${appendSysValue}")
+	set(value $ENV{${varName}})
+	if("${value}" STREQUAL "")
+		set(value ${targetPath})
+	else()
+		set(value "$ENV{${varName}};${targetPath}")
+	endif()
+	execute_process(COMMAND "setx" "${varName}" "${value}" /m)
+endmacro()
+
 # 添加Qt模块
 function(linkQtModule moduleName)
-message("linkQtModule: Qt${QT_VERSION_MAJOR}::${moduleName}")
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${moduleName})
-target_link_libraries(${PROJECT_NAME} Qt${QT_VERSION_MAJOR}::${moduleName})
-target_include_directories(${PROJECT_NAME} PUBLIC ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})
+	message("linkQtModule: Qt${QT_VERSION_MAJOR}::${moduleName}")
+	find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${moduleName})
+	target_link_libraries(${PROJECT_NAME} Qt${QT_VERSION_MAJOR}::${moduleName})
+	target_include_directories(${PROJECT_NAME} PUBLIC ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# 常规头文件
+
+	# private 头文件
+	foreach(curPath ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})
+		set(headerpath "${curPath}/${QT_VERSION}")
+		if(EXISTS ${headerpath})
+		message("include Qt Private headerpath : ${headerpath}")
+		target_include_directories(${PROJECT_NAME} PUBLIC ${headerpath})
+		#addPathToSysVar(${headerpath} QT_PRIVATE_INCLUDE_PATH)
+		endif()
+	endforeach()
+
 endfunction()
 
 # 构建目标项目
@@ -167,7 +195,9 @@ function(setGeneralConfiguration)
 	ENABLE_QTCREATOR_DEBUG()
 	
 	# Qt版本
+	set(QT_VERSION 5.14.2 PARENT_SCOPE)
 	set(QT_VERSION_MAJOR 5 PARENT_SCOPE)
+	message("Current Qt Version : ${QT_VERSION}")
 	
 endfunction()
 

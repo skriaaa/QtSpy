@@ -15,12 +15,15 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "E:/code/choice/lib/windows")
 buildProject(STATIC)
 
 # link Qt
+linkQtModule(Core)
 linkQtModule(Widgets)
 linkQtModule(Test)
-linkQtModule(Core)
 
 # 包含工程目录
 INCLUDECURRENTDIR()
 
+add_definitions(-DQT_SPY_LIB)
+addPathToSysVar(${CMAKE_CURRENT_SOURCE_DIR} QT_SPY_INCLUDE)
+#addPathToSysVar(${CMAKE_ARCHIVE_OUTPUT_DIRECTORY} Path)
 #set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../bin)
 

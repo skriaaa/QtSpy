@@ -107,6 +107,7 @@ private:
 
 	CLogTraceWnd* traceWnd();
 private:
+	QTreeWidget* m_pSignalTree = nullptr;
 	QTableWidget* m_pSignalTable{ nullptr };
 	QTableWidget* m_pSlotTable{ nullptr };
 	QObject* m_pTargetObject{ nullptr };

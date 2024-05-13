@@ -44,7 +44,7 @@
 #include <QGraphicsItem>
 #include "qt_spygraphics.h"
 
-CSpyMainWindow::CSpyMainWindow()
+CSpyMainWindow::CSpyMainWindow(QWidget* parent):QDialog(parent)
 {
 	setLayout(new QVBoxLayout());
 	if (layout()) {
@@ -54,8 +54,14 @@ CSpyMainWindow::CSpyMainWindow()
 	setWindowFlags(windowFlags() & ~Qt::WindowCloseButtonHint);
 }
 
-void CSpyMainWindow::initWindow()
+CQtSpyObject* CSpyMainWindow::spyObject()
 {
+	return m_pSpyObject;
+}
+
+void CSpyMainWindow::initWindow(CQtSpyObject* object)
+{
+	m_pSpyObject = object;
 	setWindowTitle(_QStr("qt spy"));
 	setObjectName(_QStr("mainwindow"));
 	setWindowFlag(Qt::WindowTitleHint);
@@ -317,7 +323,7 @@ bool CQtSpyObject::initToolWindow()
 	m_pMainWindow->setMenuBar(menuBar);
 
 
-	m_pMainWindow->initWindow();
+	m_pMainWindow->initWindow(this);
 	m_pMainWindow->raise();
 	m_pMainWindow->show();
 	return true;

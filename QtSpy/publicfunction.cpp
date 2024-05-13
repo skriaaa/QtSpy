@@ -94,7 +94,9 @@ QString ObjectString(QObject* object)
 	}
 	else if (OTo<QGraphicsItem>(object))
 	{
-		strText = "graphicsItem";
+		//strText = "graphicsItem";
+		strText = QString("%1=0x%2").arg("graphicsItem").arg((quintptr)OTo<QGraphicsItem>(object),
+				QT_POINTER_SIZE * 2, 16, QChar('0'));
 	}
 
 	QString strItemInfo = QString("%1(%2)").arg(objectClass(object)).arg(strText);

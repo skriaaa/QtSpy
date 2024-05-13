@@ -18,11 +18,13 @@ enum class ETreeType {
 	widgetTree = 0,
 	viewTree = 1,
 };
+class CQtSpyObject;
 class CSpyMainWindow : public QDialog {
 public:
-	CSpyMainWindow();
+	CSpyMainWindow(QWidget* parent = nullptr);
 
-	void initWindow();
+	CQtSpyObject* spyObject();
+	void initWindow(CQtSpyObject* object);
 	void setMenuBar(QMenuBar* menuBar);
 	QTreeWidget* tree();
 	virtual void keyPressEvent(QKeyEvent* event);
@@ -31,6 +33,7 @@ protected:
 	void clearSpyTree();
 private:
 	QTreeWidget* m_pTree{ nullptr };
+	CQtSpyObject* m_pSpyObject{ nullptr };
 };
 
 class CQtSpyObject : public QObject {

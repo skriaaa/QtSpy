@@ -256,15 +256,25 @@ void CSignalSpyWnd::setTargetObject(QObject* target)
 
 	setWindowTitle(strText);
 	setContent();
+
+	ParseSignal(target);
 }
 
 void CSignalSpyWnd::ParseSignal(QObject* target)
 {
 	int row = m_pSignalTable->rowCount();
-	//QObjectPrivate* sp = QObjectPrivate::get(widget);
+	//QObjectPrivate* sp = QObjectPrivate::get(target);
 	//{
 	//	QObjectPrivate::ConnectionDataPointer connections(sp->connections.loadRelaxed());
 	//	QObjectPrivate::SignalVector* signalVector = connections->signalVector.loadRelaxed();
+	//	for (int i = 0; i < signalVector->count(); ++i)
+	//	{
+	//		const QObjectPrivate::ConnectionList& list = signalVector->at(i);
+	//		QAtomicPointer<QObjectPrivate::Connection> curConnection = list.first;
+	//		QObject* obj = curConnection.loadRelaxed()->receiver.loadRelaxed();
+	//		QString str = obj->metaObject()->className();
+	//		int a = 0;
+	//	}
 	//}
 
 	QTableWidgetItem* item = new QTableWidgetItem;
@@ -1590,16 +1600,16 @@ bool CWidgetSpyTree::SpyParentWidget(const QPoint& pos)
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
 		if (widgetData(clickedItem)) {
-			CQtSpyObject::GetInstance().setTreeTarget(OTo<QWidget>(widgetData(clickedItem)->parent()));
+			dynamic_cast<CSpyMainWindow*>(parent())->spyObject()->setTreeTarget(OTo<QWidget>(widgetData(clickedItem)->parent()));
 		}
 		else if (auto item = graphicsData(clickedItem)) {
 			if (item->parentItem())
 			{
-				CQtSpyObject::GetInstance().setTreeTarget(item->parentItem());
+				dynamic_cast<CSpyMainWindow*>(parent())->spyObject()->setTreeTarget(item->parentItem());
 			}
 			else
 			{
-				CQtSpyObject::GetInstance().setTreeTarget(item->scene()->views().front());
+				dynamic_cast<CSpyMainWindow*>(parent())->spyObject()->setTreeTarget(item->scene()->views().front());
 			}
 		}
 	}
@@ -1616,12 +1626,12 @@ bool CWidgetSpyTree::SpyFirstParentWidget(const QPoint& pos)
 				while (pParent->parent()) {
 					pParent = pParent->parent();
 				}
-				CQtSpyObject::GetInstance().setTreeTarget(dynamic_cast<QWidget*>(pParent));
+				dynamic_cast<CSpyMainWindow*>(parent())->spyObject()->setTreeTarget(dynamic_cast<QWidget*>(pParent));
 			}
 		}
 		else if (QGraphicsItem* item = graphicsData(clickedItem))
 		{
-			CQtSpyObject::GetInstance().setTreeTarget(item->scene()->views().front());
+			dynamic_cast<CSpyMainWindow*>(parent())->spyObject()->setTreeTarget(item->scene()->views().front());
 		}
 	}
 	return true;
