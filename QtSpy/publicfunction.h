@@ -24,6 +24,8 @@ QString objectName(QObject* object);
 
 QString ObjectString(QObject* pWidget);
 
+QString styleSheet(QWidget* widget);
+
 template< class T>
 T* To(QGraphicsItem* p) {
 	return dynamic_cast<T*>(p);

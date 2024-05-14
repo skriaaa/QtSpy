@@ -108,3 +108,61 @@ QString ObjectString(QObject* object)
 
 	return strItemInfo;
 }
+
+class CQssAnalyze
+{
+	struct QssInfo {
+		QString strName;
+		QString strInfo;
+	};
+public:
+	QString QueryTargetQss(QWidget* widget)
+	{
+		QString strStyle;
+		do
+		{
+			strStyle += widget->styleSheet();
+			widget = OTo<QWidget>(widget->parent());
+		} while (widget);
+		
+		Analyze(strStyle);
+		QString strRet;
+		for (auto info : m_arrInfo)
+		{
+			if (info.strName.indexOf(widget->metaObject()->className(), 0, Qt::CaseInsensitive) != -1 
+				|| info.strName.isEmpty())
+			{
+				strRet += info.strName + info.strInfo + "\n";
+			}
+		}
+		return strRet;
+	}
+private:
+	void Analyze(QString strStyleSheet, int offset = 0)
+	{
+		QssInfo info;
+		QString strSplitLeft = "{";
+		QString strSplitRight = "}";
+		int left = strStyleSheet.indexOf(strSplitLeft, offset);
+		if (left == -1)
+			return;
+		info.strName = strStyleSheet.mid(offset, left - offset);	
+
+		int right = strStyleSheet.indexOf(strSplitRight, left);
+		if (right == -1)
+			return;
+		info.strInfo = strStyleSheet.mid(left, right - left + 1);
+		
+		m_arrInfo.push_back(info);
+
+		Analyze(strStyleSheet, right + 1);
+	}
+
+	QVector<QssInfo> m_arrInfo;
+};
+
+QString styleSheet(QWidget* widget)
+{
+	CQssAnalyze analyze;
+	return analyze.QueryTargetQss(widget);
+}

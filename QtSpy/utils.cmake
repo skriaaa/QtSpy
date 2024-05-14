@@ -97,8 +97,8 @@ macro(GENERAL_CONFIGURATION)
 		set(BUILD_GENERATOR_NAME "Visual Studio 16 2019")
 		set(CMAKE_BUILD_TYPE "Debug")
 		set(CMAKE_INSTALL_CONFIG_NAME "Debug")
-		#set(QTCMAKE_PATH "E:/Develop/tookits/Qt/6.5.3/msvc2019_64")
-		set(QTCMAKE_PATH "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017/bin")
+		set(QTCMAKE_PATH "E:/Develop/tookits/Qt/6.5.3/msvc2019_64")
+		#set(QTCMAKE_PATH "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017/bin")
 	elseif(PLATFORMTYPE STREQUAL "Linux")
 		# 在 Linux 平台上的逻辑
 		set(BUILD_GENERATOR_NAME "Unix Makefiles")
@@ -136,6 +136,7 @@ function(linkQtModule moduleName)
 	target_link_libraries(${PROJECT_NAME} Qt${QT_VERSION_MAJOR}::${moduleName})
 	target_include_directories(${PROJECT_NAME} PUBLIC ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# 常规头文件
 
+	if(0)
 	# private 头文件
 	foreach(curPath ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})
 		set(headerpath "${curPath}/${QT_VERSION}")
@@ -145,6 +146,7 @@ function(linkQtModule moduleName)
 		#addPathToSysVar(${headerpath} QT_PRIVATE_INCLUDE_PATH)
 		endif()
 	endforeach()
+	endif()
 
 endfunction()
 
@@ -196,7 +198,7 @@ function(setGeneralConfiguration)
 	
 	# Qt版本
 	set(QT_VERSION 5.14.2 PARENT_SCOPE)
-	set(QT_VERSION_MAJOR 5 PARENT_SCOPE)
+	set(QT_VERSION_MAJOR 6 PARENT_SCOPE)
 	message("Current Qt Version : ${QT_VERSION}")
 	
 endfunction()
