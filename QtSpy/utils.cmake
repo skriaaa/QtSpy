@@ -97,8 +97,23 @@ macro(GENERAL_CONFIGURATION)
 		set(BUILD_GENERATOR_NAME "Visual Studio 16 2019")
 		set(CMAKE_BUILD_TYPE "Debug")
 		set(CMAKE_INSTALL_CONFIG_NAME "Debug")
-		set(QTCMAKE_PATH "E:/Develop/tookits/Qt/6.5.3/msvc2019_64")
-		#set(QTCMAKE_PATH "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017/bin")
+		
+		# Qt版本
+		if(QTVERSION EQUAL 6)
+			set(QT_VERSION 6.5.3)
+			set(QT_VERSION 6.5.3 PARENT_SCOPE)
+			set(QT_VERSION_MAJOR 6)
+			set(QT_VERSION_MAJOR 6 PARENT_SCOPE)
+			set(QTCMAKE_PATH "E:/Develop/tookits/Qt/6.5.3/msvc2019_64")
+		else()
+			set(QT_VERSION 5.14.2)
+			set(QT_VERSION 5.14.2 PARENT_SCOPE)
+			set(QT_VERSION_MAJOR 5)
+			set(QT_VERSION_MAJOR 5 PARENT_SCOPE)
+			set(QTCMAKE_PATH "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017/bin")
+		endif()
+		message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
+		
 	elseif(PLATFORMTYPE STREQUAL "Linux")
 		# 在 Linux 平台上的逻辑
 		set(BUILD_GENERATOR_NAME "Unix Makefiles")
@@ -131,6 +146,7 @@ endmacro()
 
 # 添加Qt模块
 function(linkQtModule moduleName)
+	message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
 	message("linkQtModule: Qt${QT_VERSION_MAJOR}::${moduleName}")
 	find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${moduleName})
 	target_link_libraries(${PROJECT_NAME} Qt${QT_VERSION_MAJOR}::${moduleName})
@@ -195,12 +211,7 @@ function(setGeneralConfiguration)
 	
 	# 配置工程属性
 	ENABLE_QTCREATOR_DEBUG()
-	
-	# Qt版本
-	set(QT_VERSION 5.14.2 PARENT_SCOPE)
-	set(QT_VERSION_MAJOR 6 PARENT_SCOPE)
-	message("Current Qt Version : ${QT_VERSION}")
-	
+
 endfunction()
 
 #  cmake . -DPLATFORMTYPE:STRING=Windows -A Win32
