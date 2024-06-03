@@ -2,7 +2,7 @@
 #include <QWidget>
 #include <QString>
 
-enum class ESubCtrl {
+enum ESubCtrl {
 	Self = 0,
 	add_line,
 	add_page,
@@ -42,7 +42,7 @@ enum class ESubCtrl {
 	up_button,
 	num // number of ESubCtrl
 };
-
+Q_DECLARE_METATYPE(ESubCtrl)
 enum class EPseudoStates
 {
 	active = 0,
@@ -91,7 +91,7 @@ enum class EPseudoStates
 	window,
 	num // number of PseudoStates
 };
-
+Q_DECLARE_METATYPE(EPseudoStates)
 struct StyleSheetProperty
 {
 	QString m_strProperty;

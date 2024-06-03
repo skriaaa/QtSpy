@@ -1210,12 +1210,6 @@ CWidgetSpyTree::CWidgetSpyTree(QWidget* parent /*= nullptr*/) : QTreeWidget(pare
 
 	setSelectionBehavior(QAbstractItemView::SelectRows);
 	setSelectionMode(QAbstractItemView::SingleSelection);
-	setStyleSheet("QTreeView{ show-decoration-selected:1; quotesbackground:rgb(61,66,77); outline:none;}"
-		"QTreeView::item{border:0px; height:40px;}"
-		"QTreeView::item:selected, QTreeView::branch:selected{background:rgb(28,77,120);}"
-		"QTreeView::item:hover, QTreeView::branch:hover{background:rgb(28,77,120);}");
-		//"QTreeView::branch : closed : has-children{image: url(: / image / treeclose.png);}"
-		//"QTreeView::branch : open : has-children{image: url(: / image / treeopen.png);}");
 }
 
 bool CWidgetSpyTree::eventFilter(QObject* obj, QEvent* event)

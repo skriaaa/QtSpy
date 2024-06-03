@@ -7,7 +7,7 @@
 class /*QTSPY_EXPORT*/ QtSpy
 {
 public:
-    QtSpy();
+    QtSpy(void* parent = nullptr);
     ~QtSpy();
 private:
     void StartSpy(void* parent = nullptr);

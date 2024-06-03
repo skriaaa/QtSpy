@@ -1,9 +1,9 @@
 #include "qtspy.h"
 #include "qt_spyobject.h"
-//#include "qt_spymanager.h"
-QtSpy::QtSpy()
+#include "qt_spymanager.h"
+QtSpy::QtSpy(void* parent)
 {
-	StartSpy();
+	StartSpy(parent);
 }
 QtSpy::~QtSpy()
 {
@@ -12,9 +12,9 @@ QtSpy::~QtSpy()
 static CQtSpyObject* obj = nullptr;
 void QtSpy::StartSpy(void* parent)
 {
-	obj = new CQtSpyObject;
-	//CQtSpyManager::GetInstance().addSpy(this, new CQtSpyObject);
-	obj->StartSpy(static_cast<QWidget*>(parent));
+	CQtSpyObject* obj = new CQtSpyObject(static_cast<QWidget*>(parent));
+	CQtSpyManager::GetInstance().addSpy(this, new CQtSpyObject);
+	obj->StartSpy();
 }
 
 void QtSpy::StopSpy()

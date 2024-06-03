@@ -187,13 +187,13 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 	return QObject::eventFilter(watched, event);
 }
 
-CQtSpyObject::CQtSpyObject()
+CQtSpyObject::CQtSpyObject(QWidget* parent)
 {
 	m_pSpyWidget = nullptr;
-	m_pMainWindow = new CSpyMainWindow();
+	m_pMainWindow = new CSpyMainWindow(parent);
 }
 
-bool CQtSpyObject::StartSpy(QWidget* object)
+bool CQtSpyObject::StartSpy()
 {
 	initToolWindow();
 	return true;
