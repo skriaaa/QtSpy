@@ -1,0 +1,55 @@
+#include "TimeKeeper.h"
+
+void CTimeKeeper::startMonitor()
+{
+	m_tStart = QTime::currentTime();
+}
+
+void CTimeKeeper::addTimePoint(QString explaination)
+{
+	m_hashTimePoint[explaination] = m_tStart.msecsTo(QTime::currentTime());
+	m_listTimePoint.append(explaination);
+}
+
+int CTimeKeeper::queryTimePoint(QString explaination)
+{
+	return m_hashTimePoint[explaination];
+}
+
+int CTimeKeeper::queryTimePoint(QString explaination1, QString explaination2)
+{
+	return m_hashTimePoint[explaination2] - m_hashTimePoint[explaination1];
+}
+
+QString CTimeKeeper::queryTimePointString(QString explaination)
+{
+	return QString("[%1] %2").arg(explaination).arg(m_hashTimePoint[explaination]);
+}
+
+QString CTimeKeeper::queryTimePointString(QString explaination1, QString explaination2)
+{
+	return QString("[%1] %2").arg(explaination2).arg(queryTimePoint(explaination1, explaination2));
+}
+
+QString CTimeKeeper::queryTimePointString()
+{
+	if (m_listTimePoint.isEmpty())
+		return "";
+
+	QStringList listRet;
+	auto it = m_listTimePoint.begin();
+	while (it != m_listTimePoint.end()-1)
+	{
+		if (it == m_listTimePoint.begin())
+		{
+			listRet.append(queryTimePointString(*it));
+			listRet.append(queryTimePointString(*it, *(it + 1)));
+		}
+		else 
+		{
+			listRet.append(queryTimePointString(*it, *(it + 1)));
+		}
+		it++;
+	}
+	return listRet.join(" ");
+}

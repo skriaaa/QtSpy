@@ -4,6 +4,7 @@
 #ifndef QT_SPY_LIB
 #pragma comment(lib, "QtSpy.lib")
 #endif
+#include "TimeKeeper.h"
 class /*QTSPY_EXPORT*/ QtSpy
 {
 public:
