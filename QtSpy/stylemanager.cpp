@@ -1,14 +1,15 @@
 #include "stylemanager.h"
 #include <QStyle>
+#include <QMetaEnum>
 
-CWidgetProxy::CWidgetProxy()
+CStyleProxy::CStyleProxy()
 {
 	m_hashSubCtrl = {
 		{ESubCtrl::Self,"Self"},
 	};
 }
 
-QVector<ESubCtrl> CWidgetProxy::subCtrl(QWidget* widget)
+QVector<CStyleProxy::ESubCtrl> CStyleProxy::subCtrl(QWidget* widget)
 {
 	QVector<ESubCtrl> arrSubCtrl;
 	if (widget->inherits("QScrollBar"))
@@ -110,149 +111,30 @@ QVector<ESubCtrl> CWidgetProxy::subCtrl(QWidget* widget)
 			ESubCtrl::text,
 			});
 	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
-	if (widget->inherits("QProgressBar"))
-	{
-		arrSubCtrl.append({
-			ESubCtrl::chunk,
-			});
-	}
 	return arrSubCtrl;
+}
+
+QString CStyleProxy::hideHeaderGrid(QWidget* widget)
+{
+	QString strClass = widget->metaObject()->className();
+	QString strSubCtrl = querySubCtrlName(ESubCtrl::section);
+	QString strContent = "border:none;"; // background - color:white; 会把背景色搞成灰色，需要搞一下
+	QString strStyle = QString("%1:%2{%3}").arg(strClass).arg(strSubCtrl).arg(strContent);
+	return strStyle;
+}
+
+QString CStyleProxy::queryStyleSheet(QWidget* widget, ESubCtrl subCtrl, EPseudoStates pseudoState, QString value)
+{
+	return "";
+}
+
+QString CStyleProxy::querySubCtrlName(ESubCtrl subCtrl)
+{
+	if (subCtrl == ESubCtrl::Self)
+	{
+		return "";
+	}
+
+	QMetaEnum metaEnum = QMetaEnum::fromType<ESubCtrl>();
+	return metaEnum.valueToKey(subCtrl);
 }
