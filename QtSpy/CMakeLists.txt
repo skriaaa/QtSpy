@@ -9,8 +9,12 @@ project(QtSpy LANGUAGES CXX)
 # set generalConfiguration
 setGeneralConfiguration()
 	
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "E:/code/develop/lib/windows")
-	
+if(QTVERSION EQUAL 6)
+	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../bin)
+else()
+	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "E:/code/develop/lib/windows")
+endif()
+
 # build project
 buildProject(STATIC)
 

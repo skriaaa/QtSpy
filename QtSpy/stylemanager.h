@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include <QWidget>
 #include <QString>
 struct StyleSheetProperty
@@ -10,8 +10,8 @@ class CStyleProxy : public QObject
 {
 	Q_OBJECT
 public:
-	enum ESubCtrl {
-		Self = 0,
+	enum class ESubCtrl {
+		self = 0,
 		add_line,
 		add_page,
 		branch,
@@ -54,6 +54,7 @@ public:
 
 	enum class EPseudoStates
 	{
+		none = -1,
 		active = 0,
 		adjoins_item,
 		alternate,
@@ -102,21 +103,44 @@ public:
 	};
 
 	Q_ENUM(EPseudoStates);
+
+	typedef std::pair<QString, QString> PropertyPair;
+	typedef QVector<PropertyPair> PropertyArray;
 public:
-	explicit CStyleProxy();
-	~CStyleProxy() = default;
+	explicit CStyleProxy() = default;
 public:
 	QVector<ESubCtrl> subCtrl(QWidget* widget);
+
+public:
+	//<< 通用接口 >>
+	QString makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyArray arrProperty);
+	QString makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyPair pairProperty);
+
+	QString className(QWidget* widget);
+
+#pragma region
+	// 交替背景色
+	// 适用于  @QAbstractItemView
+	QString setAlternateBackGroundColor(QWidget* widget, QColor color);
+
+	// 背景色
+	QString setBackgroundColor(QWidget* widget, QColor color);
+
+	// 
+#pragma endregion
+	// 边界
+	QString setMargin(QWidget* widget, ESubCtrl subCtrl, QMargins margin);
+	QString setPadding(QWidget* widget, ESubCtrl subCtrl, QMargins padding);
 public:
 	// QHeaderView 
-	/// ���طָ���
+	/// 隐藏分割线
 	QString hideHeaderGrid(QWidget* widget);
 	//QString hideBorder()
 public:
 	static QString queryStyleSheet(QWidget* widget, ESubCtrl subCtrl, EPseudoStates pseudoState, QString value);
 	static QString querySubCtrlName(ESubCtrl subCtrl);
+	static QString queryPseudoStateName(EPseudoStates pseudoState);
 private:
-	QHash<ESubCtrl, QString> m_hashSubCtrl;
 	QVector<StyleSheetProperty> m_arrStyleProperties;
 };
 Q_DECLARE_METATYPE(CStyleProxy::ESubCtrl);

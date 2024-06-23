@@ -1,12 +1,10 @@
-#include "stylemanager.h"
+ï»¿#include "stylemanager.h"
 #include <QStyle>
 #include <QMetaEnum>
 
 CStyleProxy::CStyleProxy()
 {
-	m_hashSubCtrl = {
-		{ESubCtrl::Self,"Self"},
-	};
+
 }
 
 QVector<CStyleProxy::ESubCtrl> CStyleProxy::subCtrl(QWidget* widget)
@@ -114,12 +112,61 @@ QVector<CStyleProxy::ESubCtrl> CStyleProxy::subCtrl(QWidget* widget)
 	return arrSubCtrl;
 }
 
+QString CStyleProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyArray arrProperty)
+{
+	QString strClass = className(widget);
+	QString strSubCtrl = querySubCtrlName(eSubCtrl);
+	if (false == strSubCtrl.isEmpty())
+	{
+		strSubCtrl = "::" + strSubCtrl;
+	}
+	QString strPseudoStates = queryPseudoStateName(ePseudoStates);
+	if (false == strPseudoStates.isEmpty())
+	{
+		strPseudoStates = ":" + strPseudoStates;
+	}
+	QStringList arrStrProperty;
+	for (PropertyPair& pair : arrProperty)
+	{
+		arrStrProperty.push_back(QString("%1 : %2;").arg(pair.first).arg(pair.second));
+	}
+	QString strStyle = QString("%1%2%3{%3}").arg(strClass).arg(strSubCtrl).arg(strPseudoStates).arg(arrStrProperty.join('\n'));
+}
+
+QString CStyleProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyPair pairProperty)
+{
+	return makeQssKey(widget, eSubCtrl, ePseudoStates, { pairProperty });
+}
+
+QString CStyleProxy::className(QWidget* widget) 
+{
+	return widget->metaObject()->className();
+}
+
+QString CStyleProxy::setAlternateBackGroundColor(QWidget* widget, QColor color)
+{
+	return makeQssKey(widget, ESubCtrl::self, EPseudoStates::none, 
+		{ "alternate-background-color" , color.name() });
+}
+
+QString CStyleProxy::setMargin(QWidget* widget, ESubCtrl subCtrl, QMargins margin)
+{
+	return makeQssKey(widget, subCtrl, EPseudoStates::none, 
+		{ "margin", QString("%1 %2 %3 %4").arg(margin.top()).arg(margin.right()).arg(margin.bottom()).arg(margin.left()) });
+}
+
+QString CStyleProxy::setPadding(QWidget* widget, ESubCtrl subCtrl, QMargins padding)
+{
+	return makeQssKey(widget, subCtrl, EPseudoStates::none,
+		{ "padding", QString("%1 %2 %3 %4").arg(padding.top()).arg(padding.right()).arg(padding.bottom()).arg(padding.left()) });
+}
+
 QString CStyleProxy::hideHeaderGrid(QWidget* widget)
 {
-	QString strClass = widget->metaObject()->className();
+	QString strClass = className(widget);
 	QString strSubCtrl = querySubCtrlName(ESubCtrl::section);
-	QString strContent = "border:none;"; // background - color:white; »á°Ñ±³¾°É«¸ã³É»ÒÉ«£¬ĞèÒª¸ãÒ»ÏÂ
-	QString strStyle = QString("%1:%2{%3}").arg(strClass).arg(strSubCtrl).arg(strContent);
+	QString strContent = "border:none;"; // background - color:white; ä¼šæŠŠèƒŒæ™¯è‰²ææˆç°è‰²ï¼Œéœ€è¦æä¸€ä¸‹
+	QString strStyle = QString("%1::%2{%3}").arg(strClass).arg(strSubCtrl).arg(strContent);
 	return strStyle;
 }
 
@@ -130,11 +177,22 @@ QString CStyleProxy::queryStyleSheet(QWidget* widget, ESubCtrl subCtrl, EPseudoS
 
 QString CStyleProxy::querySubCtrlName(ESubCtrl subCtrl)
 {
-	if (subCtrl == ESubCtrl::Self)
+	if (subCtrl == ESubCtrl::self)
 	{
 		return "";
 	}
+	QString strSubCtrl = QMetaEnum::fromType<ESubCtrl>().valueToKey((int)subCtrl);
+	strSubCtrl.replace('_', '-');
+	return strSubCtrl;
+}
 
-	QMetaEnum metaEnum = QMetaEnum::fromType<ESubCtrl>();
-	return metaEnum.valueToKey(subCtrl);
+QString CStyleProxy::queryPseudoStateName(EPseudoStates pseudoState)
+{
+	if (pseudoState == EPseudoStates::none)
+	{
+		return "";
+	}
+	QString strPseudoState = QMetaEnum::fromType<EPseudoStates>().valueToKey((int)pseudoState);
+	strPseudoState.replace('_', '-');
+	return strPseudoState;
 }
