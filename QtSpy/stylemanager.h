@@ -121,21 +121,26 @@ public:
 #pragma region
 	// 交替背景色
 	// 适用于  @QAbstractItemView
-	QString setAlternateBackGroundColor(QWidget* widget, QColor color);
+	QString setAlternateBackGroundColor(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, QColor color);
 
 	// 背景色
-	QString setBackgroundColor(QWidget* widget, QColor color);
+	QString setBackgroundColor(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, QColor color);
 
-	// 
 #pragma endregion
+
+	// 不显示焦点虚线
+	QString hideOutLine(QWidget* widget);
+
 	// 边界
 	QString setMargin(QWidget* widget, ESubCtrl subCtrl, QMargins margin);
 	QString setPadding(QWidget* widget, ESubCtrl subCtrl, QMargins padding);
+
 public:
+
 	// QHeaderView 
 	/// 隐藏分割线
 	QString hideHeaderGrid(QWidget* widget);
-	//QString hideBorder()
+
 public:
 	static QString queryStyleSheet(QWidget* widget, ESubCtrl subCtrl, EPseudoStates pseudoState, QString value);
 	static QString querySubCtrlName(ESubCtrl subCtrl);

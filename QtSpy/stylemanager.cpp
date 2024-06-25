@@ -143,10 +143,28 @@ QString CStyleProxy::className(QWidget* widget)
 	return widget->metaObject()->className();
 }
 
-QString CStyleProxy::setAlternateBackGroundColor(QWidget* widget, QColor color)
+QString CStyleProxy::setAlternateBackGroundColor(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, QColor color)
 {
-	return makeQssKey(widget, ESubCtrl::self, EPseudoStates::none, 
+	return makeQssKey(widget, eSubCtrl, ePseudoStates,
 		{ "alternate-background-color" , color.name() });
+}
+
+QString CStyleProxy::setBackgroundColor(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, QColor color)
+{
+	return makeQssKey(widget, eSubCtrl, ePseudoStates,
+		{ "background-color" , color.name() });
+}
+
+QString CStyleProxy::hideOutLine(QWidget* widget)
+{
+	QString strQss = makeQssKey(widget, ESubCtrl::self, EPseudoStates::none, PropertyPair("outline", "none"));
+
+	// 如果是table控件，需要设置子项颜色才能生效
+	if (widget->inherits("QTableView"))
+	{
+		//strQss += "\n" + makeQssKey(widget, ESubCtrl::item, EPseudoStates::none, PropertyPair("background-color", "white"));
+	}
+	return strQss;
 }
 
 QString CStyleProxy::setMargin(QWidget* widget, ESubCtrl subCtrl, QMargins margin)
