@@ -167,16 +167,26 @@ QString CStyleProxy::hideOutLine(QWidget* widget)
 	return strQss;
 }
 
-QString CStyleProxy::setMargin(QWidget* widget, ESubCtrl subCtrl, QMargins margin)
+QString CStyleProxy::setMargin(QWidget* widget, ESubCtrl eSubCtrl, QMargins margin)
 {
-	return makeQssKey(widget, subCtrl, EPseudoStates::none, 
-		{ "margin", QString("%1 %2 %3 %4").arg(margin.top()).arg(margin.right()).arg(margin.bottom()).arg(margin.left()) });
+	return makeQssKey(widget, eSubCtrl, EPseudoStates::none,
+		{ { "margin", QString("%1 %2 %3 %4").arg(margin.top()).arg(margin.right()).arg(margin.bottom()).arg(margin.left()) });
 }
 
-QString CStyleProxy::setPadding(QWidget* widget, ESubCtrl subCtrl, QMargins padding)
+QString CStyleProxy::setPadding(QWidget* widget, ESubCtrl eSubCtrl, QMargins padding)
 {
-	return makeQssKey(widget, subCtrl, EPseudoStates::none,
+	return makeQssKey(widget, eSubCtrl, EPseudoStates::none,
 		{ "padding", QString("%1 %2 %3 %4").arg(padding.top()).arg(padding.right()).arg(padding.bottom()).arg(padding.left()) });
+}
+
+QString CStyleProxy::setUnderLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates)
+{
+	return makeQssKey(widget, eSubCtrl, ePseudoStates, PropertyPair { "text-decoration", "underline" });
+}
+
+QString CStyleProxy::setDeleteLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates)
+{
+	return makeQssKey(widget, eSubCtrl, ePseudoStates, PropertyPair{ "text-decoration", "line-through" });
 }
 
 QString CStyleProxy::hideHeaderGrid(QWidget* widget)

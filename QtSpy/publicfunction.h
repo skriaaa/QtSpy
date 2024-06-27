@@ -35,4 +35,3 @@ template< class T>
 T* OTo(QObject* p) {
 	return dynamic_cast<T*>(p);
 }
-
