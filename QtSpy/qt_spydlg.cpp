@@ -1471,46 +1471,37 @@ bool CWidgetSpyTree::ShowWidgetStatus(const QPoint& pos)
 			pInfo->setWindowTitle(ObjectString(pTargetWidget));
 			QStyleOption option;
 			option.initFrom(pTargetWidget);
-			struct TItem {
-				QStyle::StateFlag state;
-				QString name;
-			};
-			TItem arrStates[] = {
-			   {QStyle::State_None , "State_None"},
-			   {QStyle::State_Enabled , "State_Enabled"},
-			   {QStyle::State_Raised , "State_Raised"},
-			   {QStyle::State_Sunken , "State_Sunken"},
-			   {QStyle::State_Off , "State_Off"},
-			   {QStyle::State_NoChange , "State_NoChange"},
-			   {QStyle::State_On , "State_On"},
-			   {QStyle::State_DownArrow , "State_DownArrow"},
-			   {QStyle::State_Horizontal , "State_Horizontal"},
-			   {QStyle::State_HasFocus , "State_HasFocus"},
-			   {QStyle::State_Top , "State_Top"},
-			   {QStyle::State_Bottom , "State_Bottom"},
-			   {QStyle::State_FocusAtBorder , "State_FocusAtBorder"},
-			   {QStyle::State_AutoRaise , "State_AutoRaise"},
-			   {QStyle::State_MouseOver , "QStyle::State_MouseOver"},
-			   {QStyle::State_UpArrow , "State_UpArrow" },
-			   {QStyle::State_Selected , "State_Selected"},
-			   {QStyle::State_Active , "State_Active"},
-			   {QStyle::State_Window ,"State_Window"},
-			   {QStyle::State_Open , "State_Open"},
-			   {QStyle::State_Children , "State_Children"},
-			   {QStyle::State_Item , "State_Item"},
-			   {QStyle::State_Sibling , "State_Sibling"},
-			   {QStyle::State_Editing , "State_Editing"},
-			   {QStyle::State_KeyboardFocusChange , "State_KeyboardFocusChange"},
-			   {QStyle::State_ReadOnly , "State_ReadOnly"},
-			   {QStyle::State_Small , "State_Small"},
-			   {QStyle::State_Mini , "State_Mini"}
-			};
-			for (auto item : arrStates)
+			
+			QStringList arrState;
+			for (int i = 0; i < queryEnumCount<QStyle::StateFlag>(); i++)
 			{
-				if (option.state.testFlag(item.state)) {
-					pInfo->AddAttribute(_QStr("状态"), item.name);
+				if (option.state.testFlag(queryEnumValue<QStyle::StateFlag>(i))) 
+				{
+					arrState.append(queryEnumName<QStyle::StateFlag>(i));
 				}
 			}
+			pInfo->AddAttribute("QStyle::StateFlag", arrState.join(" | "));
+
+			QStringList arrAttribute;
+			for (int i = 0; i < Qt::AA_AttributeCount; i++)
+			{
+				if (pTargetWidget->testAttribute((Qt::WidgetAttribute)i))
+				{
+					arrAttribute.append(queryEnumName<Qt::WidgetAttribute>((Qt::WidgetAttribute)i));
+				}
+			}
+			pInfo->AddAttribute("WidgetAttribute", arrAttribute.join(" | "));
+
+			QStringList arrWindowType;
+			for (int i = 0; i < queryEnumCount<Qt::WindowType>(); ++i)
+			{
+				if (pTargetWidget->windowFlags().testFlag(queryEnumValue<Qt::WindowType>(i)))
+				{
+					arrWindowType.append(queryEnumName<Qt::WindowType>(i));
+				}
+			}
+			pInfo->AddAttribute("WindowType", arrWindowType.join(" | "));
+
 			auto button = dynamic_cast<QAbstractButton*>(pTargetWidget);
 			if (button) {
 				pInfo->AddAttribute(_QStr("抽象按钮类"), button->isCheckable() ? _QStr("可勾选") : _QStr("不可勾选"));

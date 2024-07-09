@@ -42,6 +42,7 @@
 #include <QStackedLayout>
 #include <QGraphicsView>
 #include <QGraphicsItem>
+#include <QButtonGroup>
 #include "qt_spygraphics.h"
 
 CSpyMainWindow::CSpyMainWindow(QWidget* parent):QDialog(parent)

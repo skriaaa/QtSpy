@@ -137,7 +137,18 @@ public:
 		State_Small = 0x04000000,
 		State_Mini = 0x08000000
 	};
-	Q_ENUM(EStateFlag)
+	Q_ENUM(EStateFlag);
+
+	// 子控件位置
+	enum ESubcontrolOrigin
+	{
+		none = 0,
+		margin,
+		border,
+		padding,
+		content,
+	};
+	Q_ENUM(ESubcontrolOrigin);
 
 	typedef std::pair<QString, QString> PropertyPair;
 	typedef QVector<PropertyPair> PropertyArray;
@@ -171,11 +182,14 @@ public:
 	QString setMargin(QWidget* widget, ESubCtrl subCtrl, QMargins margin);
 	QString setPadding(QWidget* widget, ESubCtrl subCtrl, QMargins padding);
 
-	// 下划线 (!!!注意 搭配状态 :hover 不好使)
+	// 下划线 (!!!注意 QLabel不支持 :hover 的状态，因此搭配使用不好使)
 	QString setUnderLine(QWidget* widget, ESubCtrl subCtrl, EPseudoStates ePseudoStates);
 
-	// 删除线 (!!!注意 搭配状态 :hover 不好使)
+	// 删除线 (!!!注意 QLabel不支持 :hover 的状态，因此搭配使用不好使)
 	QString setDeleteLine(QWidget* widget, ESubCtrl subCtrl, EPseudoStates ePseudoStates);
+
+	// QGroupBox
+	QString setTitleStyle(QWidget* widget, EPseudoStates ePseudoStates, ESubcontrolOrigin origin, QMargins margin, QMargins padding);
 public:
 
 	// QHeaderView 
@@ -186,8 +200,10 @@ public:
 	static QString queryStyleSheet(QWidget* widget, ESubCtrl subCtrl, EPseudoStates pseudoState, QString value);
 	static QString querySubCtrlName(ESubCtrl subCtrl);
 	static QString queryPseudoStateName(EPseudoStates pseudoState);
+	static QString marginToString(QMargins margin);
 private:
 	QVector<StyleSheetProperty> m_arrStyleProperties;
 };
+
 Q_DECLARE_METATYPE(CStyleProxy::ESubCtrl);
 Q_DECLARE_METATYPE(CStyleProxy::EPseudoStates);

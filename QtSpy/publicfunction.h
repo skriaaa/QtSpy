@@ -35,3 +35,34 @@ template< class T>
 T* OTo(QObject* p) {
 	return dynamic_cast<T*>(p);
 }
+
+template <typename T>
+T queryEnumValue(int nIndex)
+{
+	return static_cast<T>(QMetaEnum::fromType<T>().value(nIndex));
+}
+
+template <typename T>
+QString queryEnumName(T enumItem)
+{
+	if (static_cast<int>(enumItem) == 0)
+	{
+		return "";
+	}
+	QString strEnum = QMetaEnum::fromType<T>().valueToKey((int)enumItem);
+	strEnum.replace('_', '-');
+	return strEnum;
+}
+
+template <typename T>
+QString queryEnumName(int nIndex)
+{
+	return queryEnumName<T>(queryEnumValue<T>(nIndex));
+}
+
+template <typename T>
+int queryEnumCount()
+{
+	return QMetaEnum::fromType<T>().keyCount();
+}
+

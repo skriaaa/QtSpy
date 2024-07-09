@@ -2,10 +2,8 @@
 #include <QStyle>
 #include <QMetaEnum>
 
-CStyleProxy::CStyleProxy()
-{
+#include "publicfunction.h"
 
-}
 
 QVector<CStyleProxy::ESubCtrl> CStyleProxy::subCtrl(QWidget* widget)
 {
@@ -131,11 +129,12 @@ QString CStyleProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoState
 		arrStrProperty.push_back(QString("%1 : %2;").arg(pair.first).arg(pair.second));
 	}
 	QString strStyle = QString("%1%2%3{%3}").arg(strClass).arg(strSubCtrl).arg(strPseudoStates).arg(arrStrProperty.join('\n'));
+	return strStyle;
 }
 
 QString CStyleProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyPair pairProperty)
 {
-	return makeQssKey(widget, eSubCtrl, ePseudoStates, { pairProperty });
+	return makeQssKey(widget, eSubCtrl, ePseudoStates, PropertyArray{ pairProperty });
 }
 
 QString CStyleProxy::className(QWidget* widget) 
@@ -170,13 +169,13 @@ QString CStyleProxy::hideOutLine(QWidget* widget)
 QString CStyleProxy::setMargin(QWidget* widget, ESubCtrl eSubCtrl, QMargins margin)
 {
 	return makeQssKey(widget, eSubCtrl, EPseudoStates::none,
-		{ { "margin", QString("%1 %2 %3 %4").arg(margin.top()).arg(margin.right()).arg(margin.bottom()).arg(margin.left()) });
+		{  "margin", marginToString(margin) });
 }
 
 QString CStyleProxy::setPadding(QWidget* widget, ESubCtrl eSubCtrl, QMargins padding)
 {
 	return makeQssKey(widget, eSubCtrl, EPseudoStates::none,
-		{ "padding", QString("%1 %2 %3 %4").arg(padding.top()).arg(padding.right()).arg(padding.bottom()).arg(padding.left()) });
+		{ "padding", marginToString(padding) });
 }
 
 QString CStyleProxy::setUnderLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates)
@@ -187,6 +186,15 @@ QString CStyleProxy::setUnderLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoSta
 QString CStyleProxy::setDeleteLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates)
 {
 	return makeQssKey(widget, eSubCtrl, ePseudoStates, PropertyPair{ "text-decoration", "line-through" });
+}
+
+QString CStyleProxy::setTitleStyle(QWidget* widget, EPseudoStates ePseudoStates, ESubcontrolOrigin origin, QMargins margin, QMargins padding)
+{
+	QStringList arrQss;
+	arrQss.push_back(setMargin(widget, ESubCtrl::self, margin));
+	arrQss.push_back(setPadding(widget, ESubCtrl::title, padding));
+	arrQss.push_back(makeQssKey(widget, ESubCtrl::title, ePseudoStates, { "subcontrol-origin", queryEnumName(origin) }));
+	return arrQss.join("\n");
 }
 
 QString CStyleProxy::hideHeaderGrid(QWidget* widget)
@@ -205,22 +213,15 @@ QString CStyleProxy::queryStyleSheet(QWidget* widget, ESubCtrl subCtrl, EPseudoS
 
 QString CStyleProxy::querySubCtrlName(ESubCtrl subCtrl)
 {
-	if (subCtrl == ESubCtrl::self)
-	{
-		return "";
-	}
-	QString strSubCtrl = QMetaEnum::fromType<ESubCtrl>().valueToKey((int)subCtrl);
-	strSubCtrl.replace('_', '-');
-	return strSubCtrl;
+	return queryEnumName<ESubCtrl>(subCtrl);
 }
 
-QString CStyleProxy::queryPseudoStateName(EPseudoStates pseudoState)
+QString CStyleProxy::queryPseudoStateName(EPseudoStates ePseudoState)
 {
-	if (pseudoState == EPseudoStates::none)
-	{
-		return "";
-	}
-	QString strPseudoState = QMetaEnum::fromType<EPseudoStates>().valueToKey((int)pseudoState);
-	strPseudoState.replace('_', '-');
-	return strPseudoState;
+	return queryEnumName<EPseudoStates>(ePseudoState);
+}
+
+QString CStyleProxy::marginToString(QMargins margin)
+{
+	return QString("%1 %2 %3 %4").arg(margin.top()).arg(margin.right()).arg(margin.bottom()).arg(margin.left());
 }
