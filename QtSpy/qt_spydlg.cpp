@@ -39,6 +39,7 @@
 #include <QGraphicsScene>
 //#include "QtCore/5.14.2/QtCore/private/qobject_p.h"
 #include "publicfunction.h"
+#include "proxyStyle/ProxyStyle.h"
 
 CSpyIndicatorWnd::CSpyIndicatorWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent)
 {
@@ -1234,7 +1235,7 @@ void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 	QAction* actionSignal = contextMenu.addAction("信号/槽");
 	QAction* actionEventTrace = contextMenu.addAction("事件跟踪");
 	QAction* actionStyleEdit = contextMenu.addAction("风格编辑");
-	QAction* actionUserDrawParam = contextMenu.addAction("自绘参数");
+	QAction* actionUserDrawParam = contextMenu.addAction("自绘控件");
 	QAction* actionWidgetStatus = contextMenu.addAction("组件状态");
 	QAction* actionResourceHub = contextMenu.addAction("资源仓库");
 	QAction* actionChangeVisible = contextMenu.addAction("显示|隐藏");
@@ -1259,7 +1260,7 @@ void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 		ShowStyleEdit(pos);
 	}
 	else if (selectedAction == actionUserDrawParam) {
-		ShowUserDrawParam(pos);
+		SetUserDraw(pos);
 	}
 	else if (selectedAction == actionWidgetStatus) {
 		ShowWidgetStatus(pos);
@@ -1563,15 +1564,12 @@ bool CWidgetSpyTree::ShowEventTrace(const QPoint& pos)
 	return true;
 }
 
-bool CWidgetSpyTree::ShowUserDrawParam(const QPoint& pos)
+bool CWidgetSpyTree::SetUserDraw(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
 		QWidget* pTargetWidget = widgetData(clickedItem);
-		//CUserDrawParamWnd* pEditStyleWnd = new CUserDrawParamWnd();
-		//pEditStyleWnd->setWindowTitle(WidgetString(pTargetWidget));
-		//pEditStyleWnd->InitFromWidget(pTargetWidget);
-		//pEditStyleWnd->ShowOnTop();
+		pTargetWidget->setStyle(new CCommonProxyStyle(pTargetWidget->style()));
 	}
 	return true;
 }

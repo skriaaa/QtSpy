@@ -76,7 +76,7 @@ void CSpyMainWindow::initWindow(CQtSpyObject* object)
 		QStyle::alignedRect(
 			Qt::LeftToRight,
 			Qt::AlignCenter,
-			size(),
+			QSize(400, 300),
 			qApp->primaryScreen()->availableGeometry()
 		)
 	);

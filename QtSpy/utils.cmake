@@ -73,10 +73,10 @@ macro(MULTI_PROCESS_COMPILE)
 endmacro()
 
 # 设置并使用c++版本
-function(setCXXVersion ver)
-	set(CMAKE_CXX_STANDARD ver)
+macro(SetCXXVersion17)
+	set(CMAKE_CXX_STANDARD 17)
 	set(CMAKE_CXX_STANDARD_REQUIRED ON)
-endfunction()
+endmacro()
 
 
 # 生成目录
@@ -101,18 +101,19 @@ macro(GENERAL_CONFIGURATION)
 		# Qt版本
 		if(QTVERSION EQUAL 6)
 			set(QT_VERSION 6.5.3)
-			set(QT_VERSION 6.5.3 PARENT_SCOPE)
+			#set(QT_VERSION 6.5.3 PARENT_SCOPE)
 			set(QT_VERSION_MAJOR 6)
-			set(QT_VERSION_MAJOR 6 PARENT_SCOPE)
+			#set(QT_VERSION_MAJOR 6 PARENT_SCOPE)
 			set(QTCMAKE_PATH "E:/Develop/tookits/Qt/6.5.3/msvc2019_64")
 		else()
 			set(QT_VERSION 5.14.2)
-			set(QT_VERSION 5.14.2 PARENT_SCOPE)
+			#set(QT_VERSION 5.14.2 PARENT_SCOPE)
 			set(QT_VERSION_MAJOR 5)
-			set(QT_VERSION_MAJOR 5 PARENT_SCOPE)
+			#set(QT_VERSION_MAJOR 5 PARENT_SCOPE)
 			set(QTCMAKE_PATH "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017/bin")
 		endif()
 		message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
+
 		
 	elseif(PLATFORMTYPE STREQUAL "Linux")
 		# 在 Linux 平台上的逻辑
@@ -123,7 +124,7 @@ macro(GENERAL_CONFIGURATION)
 	endif()
 endmacro()
 
-macro(INCLUDECURRENTDIR)
+macro(INCLUDEDIRECTORY)
 	target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 endmacro()
 
@@ -145,12 +146,25 @@ macro(addPathToSysVar targetPath varName)
 endmacro()
 
 # 添加Qt模块
-function(linkQtModule moduleName)
+function(linkQtModules)
+	message("\n*****************linkQtModules begin*****************\n")
 	message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
-	message("linkQtModule: Qt${QT_VERSION_MAJOR}::${moduleName}")
-	find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${moduleName})
-	target_link_libraries(${PROJECT_NAME} Qt${QT_VERSION_MAJOR}::${moduleName})
-	target_include_directories(${PROJECT_NAME} PUBLIC ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# 常规头文件
+	
+	set(options)
+	set(oneValueArgs)
+	set(multiValueArgs MODULES)
+	cmake_parse_arguments(MY_ARGS
+		"${options}"   			# options
+		"${oneValueArgs}"   	# one_value_keywords
+		"${multiValueArgs}"     # multi_value_keywords
+		${ARGV})
+	
+	foreach(moduleName ${MY_ARGS_MODULES})
+		find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${moduleName})
+		target_link_libraries(${PROJECT_NAME} Qt${QT_VERSION_MAJOR}::${moduleName})
+		target_include_directories(${PROJECT_NAME} PUBLIC ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# 常规头文件
+		message("linkQtModule: Qt${QT_VERSION_MAJOR}::${moduleName}")
+	endforeach()
 
 	if(0)
 	# private 头文件
@@ -163,42 +177,68 @@ function(linkQtModule moduleName)
 		endif()
 	endforeach()
 	endif()
+	message("\n*****************linkQtModules end*****************\n")
+endfunction()
 
+function(findSourceFile)
+	message("\n*****************collect files begin*****************\n")
+	set(options)
+	set(oneValueArgs FILEARRAYNAME)
+	set(multiValueArgs SUBDIRS)
+	cmake_parse_arguments(MY_ARGS
+		"${options}"   			# options
+		"${oneValueArgs}"   	# one_value_keywords
+		"${multiValueArgs}"     # multi_value_keywords
+		${ARGV})
+	
+	# 当前工程目录下的cpp文件
+	aux_source_directory("${CMAKE_CURRENT_SOURCE_DIR}" SourceList)
+	list(LENGTH SourceList length) 
+	message ("ProjectDir SourceFileCount : ${length}")
+		
+	# 递归子目录下的cpp文件
+	foreach(dir ${MY_ARGS_SUBDIRS})
+		file(GLOB_RECURSE arrSubFile ${CMAKE_CURRENT_SOURCE_DIR}${dir}/*.cpp)
+		list(LENGTH arrSubFile length) 
+		message ("SubDir[${dir}] SourceFileCount : ${length}")
+		list(APPEND SourceList ${arrSubFile})
+	endforeach()
+	
+	file(GLOB_RECURSE HeaderList ${PROJECT_SOURCE_DIR}/*.h ${PROJECT_SOURCE_DIR}/*.hpp)
+	list(LENGTH HeaderList length) 
+	message("Project All HeaderFileCount : ${length}")	
+	list(LENGTH SourceList length) 
+	message("Project All SourceFileCount : ${length}")
+
+	list(APPEND arrFile ${SourceList} ${HeaderList})
+	set(${MY_ARGS_FILEARRAYNAME} ${arrFile} PARENT_SCOPE)
+	
+	message("\n*****************collect files end*****************\n")
 endfunction()
 
 # 构建目标项目
-function(buildProject type)
-	set(CodeDir ${CMAKE_CURRENT_SOURCE_DIR})
-	
-	message("addCodeFile: ${CodeDir}")
-	
-	# 递归查找所有cpp文件
-	aux_source_directory(${CodeDir} SourceList)
-	#file(GLOB_RECURSE SourceList ${CodeDir}/*.cpp)
-	
-	# 递归查找所有CodeDir及子文件夹下的 .h和.hpp文件
-	file(GLOB_RECURSE HeaderList ${CodeDir}/*.h ${CodeDir}/*.hpp)
-	
+function(buildProject type arrFile)
+	set(multiValueArgs SUB_VALUES DEFUALT_VALUES)
 	if(type STREQUAL "STATIC")
 		message("build static library ${PROJECT_NAME}")
-		add_library(${PROJECT_NAME} STATIC ${SourceList} ${HeaderList})
+		add_library(${PROJECT_NAME} STATIC ${${arrFile}})
 	elseif(type STREQUAL "EXE")
 	message("build executable ${PROJECT_NAME}")
-		add_executable(${PROJECT_NAME} STATIC ${SourceList} ${HeaderList})
+		add_executable(${PROJECT_NAME} STATIC ${${arrFile}})
 	elseif(type STREQUAL "SHARED")
 	message("build shared library ${PROJECT_NAME}")
-		add_library(${PROJECT_NAME} ${SourceList} ${HeaderList})
+		add_library(${PROJECT_NAME} ${${arrFile}})
 	endif()
 	
 endfunction()
 
-function(setGeneralConfiguration)
+macro(SetGeneralConfiguration)
 
 	# 通用设置：查找路径
 	GENERAL_CONFIGURATION()
 	
 	# C++版本
-	setCXXVersion(17)
+	SetCXXVersion17()
 	
 	# Qt资源文件自动编译
 	QT_AUTORESOURCE_COMPILE()
@@ -212,6 +252,6 @@ function(setGeneralConfiguration)
 	# 配置工程属性
 	ENABLE_QTCREATOR_DEBUG()
 
-endfunction()
+endmacro()
 
 #  cmake . -DPLATFORMTYPE:STRING=Windows -A Win32

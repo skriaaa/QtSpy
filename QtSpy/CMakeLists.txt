@@ -7,24 +7,31 @@ include(utils.cmake)
 project(QtSpy LANGUAGES CXX)
 
 # set generalConfiguration
-setGeneralConfiguration()
+SetGeneralConfiguration()
 	
 if(QTVERSION EQUAL 6)
-	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../bin)
+	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../bin)	
 else()
 	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "E:/code/develop/lib/windows")
 endif()
 
+# 添加源文件
+findSourceFile(
+	FILEARRAYNAME fileList
+	SUBDIRS /proxyStyle
+	)
+
 # build project
-buildProject(STATIC)
+buildProject(STATIC fileList)
 
 # link Qt
-linkQtModule(Core)
-linkQtModule(Widgets)
-linkQtModule(Test)
+linkQtModules(
+	MODULES Core Widgets Test
+		)
 
 # 包含工程目录
-INCLUDECURRENTDIR()
+INCLUDEDIRECTORY()
+
 
 add_definitions(-DQT_SPY_LIB)
 addPathToSysVar(${CMAKE_CURRENT_SOURCE_DIR} QT_SPY_INCLUDE)

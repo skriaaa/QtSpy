@@ -378,7 +378,7 @@ private:
 
 	bool ShowEventTrace(const QPoint& pos);
 
-	bool ShowUserDrawParam(const QPoint& pos);
+	bool SetUserDraw(const QPoint& pos);
 
 	bool ShowStyleEdit(const QPoint& pos);
 
