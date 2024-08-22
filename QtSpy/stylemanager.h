@@ -6,12 +6,12 @@ struct StyleSheetProperty
 	QString m_strProperty;
 };
 
-class CStyleProxy : public QObject
+class CStyleSheetProxy : public QObject
 {
 	Q_OBJECT
 public:
 	enum class ESubCtrl {
-		self = 0,
+		self = -1,
 		add_line,
 		add_page,
 		branch,
@@ -48,14 +48,13 @@ public:
 		title,
 		up_arrow,
 		up_button,
-		num // number of ESubCtrl
 	};
 	Q_ENUM(ESubCtrl);
 
 	enum class EPseudoStates
 	{
 		none = -1,
-		active = 0,
+		active,
 		adjoins_item,
 		alternate,
 		bottom,
@@ -99,45 +98,9 @@ public:
 		unchecked,
 		vertical,
 		window,
-		num // number of PseudoStates
 	};
 
 	Q_ENUM(EPseudoStates);
-
-	enum EStateFlag {
-		State_None = 0x00000000,
-		State_Enabled = 0x00000001,
-		State_Raised = 0x00000002,
-		State_Sunken = 0x00000004,
-		State_Off = 0x00000008,
-		State_NoChange = 0x00000010,
-		State_On = 0x00000020,
-		State_DownArrow = 0x00000040,
-		State_Horizontal = 0x00000080,
-		State_HasFocus = 0x00000100,
-		State_Top = 0x00000200,
-		State_Bottom = 0x00000400,
-		State_FocusAtBorder = 0x00000800,
-		State_AutoRaise = 0x00001000,
-		State_MouseOver = 0x00002000,
-		State_UpArrow = 0x00004000,
-		State_Selected = 0x00008000,
-		State_Active = 0x00010000,
-		State_Window = 0x00020000,
-		State_Open = 0x00040000,
-		State_Children = 0x00080000,
-		State_Item = 0x00100000,
-		State_Sibling = 0x00200000,
-		State_Editing = 0x00400000,
-		State_KeyboardFocusChange = 0x00800000,
-#ifdef QT_KEYPAD_NAVIGATION
-		State_HasEditFocus = 0x01000000,
-#endif
-		State_ReadOnly = 0x02000000,
-		State_Small = 0x04000000,
-		State_Mini = 0x08000000
-	};
-	Q_ENUM(EStateFlag);
 
 	// 子控件位置
 	enum ESubcontrolOrigin
@@ -153,7 +116,7 @@ public:
 	typedef std::pair<QString, QString> PropertyPair;
 	typedef QVector<PropertyPair> PropertyArray;
 public:
-	explicit CStyleProxy() = default;
+	explicit CStyleSheetProxy() = default;
 public:
 	QVector<ESubCtrl> subCtrl(QWidget* widget);
 
@@ -205,5 +168,5 @@ private:
 	QVector<StyleSheetProperty> m_arrStyleProperties;
 };
 
-Q_DECLARE_METATYPE(CStyleProxy::ESubCtrl);
-Q_DECLARE_METATYPE(CStyleProxy::EPseudoStates);
+Q_DECLARE_METATYPE(CStyleSheetProxy::ESubCtrl);
+Q_DECLARE_METATYPE(CStyleSheetProxy::EPseudoStates);

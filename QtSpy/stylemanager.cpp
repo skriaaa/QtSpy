@@ -5,7 +5,7 @@
 #include "publicfunction.h"
 
 
-QVector<CStyleProxy::ESubCtrl> CStyleProxy::subCtrl(QWidget* widget)
+QVector<CStyleSheetProxy::ESubCtrl> CStyleSheetProxy::subCtrl(QWidget* widget)
 {
 	QVector<ESubCtrl> arrSubCtrl;
 	if (widget->inherits("QScrollBar"))
@@ -110,7 +110,7 @@ QVector<CStyleProxy::ESubCtrl> CStyleProxy::subCtrl(QWidget* widget)
 	return arrSubCtrl;
 }
 
-QString CStyleProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyArray arrProperty)
+QString CStyleSheetProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyArray arrProperty)
 {
 	QString strClass = className(widget);
 	QString strSubCtrl = querySubCtrlName(eSubCtrl);
@@ -132,29 +132,29 @@ QString CStyleProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoState
 	return strStyle;
 }
 
-QString CStyleProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyPair pairProperty)
+QString CStyleSheetProxy::makeQssKey(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, PropertyPair pairProperty)
 {
 	return makeQssKey(widget, eSubCtrl, ePseudoStates, PropertyArray{ pairProperty });
 }
 
-QString CStyleProxy::className(QWidget* widget) 
+QString CStyleSheetProxy::className(QWidget* widget) 
 {
 	return widget->metaObject()->className();
 }
 
-QString CStyleProxy::setAlternateBackGroundColor(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, QColor color)
+QString CStyleSheetProxy::setAlternateBackGroundColor(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, QColor color)
 {
 	return makeQssKey(widget, eSubCtrl, ePseudoStates,
 		{ "alternate-background-color" , color.name() });
 }
 
-QString CStyleProxy::setBackgroundColor(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, QColor color)
+QString CStyleSheetProxy::setBackgroundColor(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates, QColor color)
 {
 	return makeQssKey(widget, eSubCtrl, ePseudoStates,
 		{ "background-color" , color.name() });
 }
 
-QString CStyleProxy::hideOutLine(QWidget* widget)
+QString CStyleSheetProxy::hideOutLine(QWidget* widget)
 {
 	QString strQss = makeQssKey(widget, ESubCtrl::self, EPseudoStates::none, PropertyPair("outline", "none"));
 
@@ -166,29 +166,29 @@ QString CStyleProxy::hideOutLine(QWidget* widget)
 	return strQss;
 }
 
-QString CStyleProxy::setMargin(QWidget* widget, ESubCtrl eSubCtrl, QMargins margin)
+QString CStyleSheetProxy::setMargin(QWidget* widget, ESubCtrl eSubCtrl, QMargins margin)
 {
 	return makeQssKey(widget, eSubCtrl, EPseudoStates::none,
 		{  "margin", marginToString(margin) });
 }
 
-QString CStyleProxy::setPadding(QWidget* widget, ESubCtrl eSubCtrl, QMargins padding)
+QString CStyleSheetProxy::setPadding(QWidget* widget, ESubCtrl eSubCtrl, QMargins padding)
 {
 	return makeQssKey(widget, eSubCtrl, EPseudoStates::none,
 		{ "padding", marginToString(padding) });
 }
 
-QString CStyleProxy::setUnderLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates)
+QString CStyleSheetProxy::setUnderLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates)
 {
 	return makeQssKey(widget, eSubCtrl, ePseudoStates, PropertyPair { "text-decoration", "underline" });
 }
 
-QString CStyleProxy::setDeleteLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates)
+QString CStyleSheetProxy::setDeleteLine(QWidget* widget, ESubCtrl eSubCtrl, EPseudoStates ePseudoStates)
 {
 	return makeQssKey(widget, eSubCtrl, ePseudoStates, PropertyPair{ "text-decoration", "line-through" });
 }
 
-QString CStyleProxy::setTitleStyle(QWidget* widget, EPseudoStates ePseudoStates, ESubcontrolOrigin origin, QMargins margin, QMargins padding)
+QString CStyleSheetProxy::setTitleStyle(QWidget* widget, EPseudoStates ePseudoStates, ESubcontrolOrigin origin, QMargins margin, QMargins padding)
 {
 	QStringList arrQss;
 	arrQss.push_back(setMargin(widget, ESubCtrl::self, margin));
@@ -197,7 +197,7 @@ QString CStyleProxy::setTitleStyle(QWidget* widget, EPseudoStates ePseudoStates,
 	return arrQss.join("\n");
 }
 
-QString CStyleProxy::hideHeaderGrid(QWidget* widget)
+QString CStyleSheetProxy::hideHeaderGrid(QWidget* widget)
 {
 	QString strClass = className(widget);
 	QString strSubCtrl = querySubCtrlName(ESubCtrl::section);
@@ -206,22 +206,22 @@ QString CStyleProxy::hideHeaderGrid(QWidget* widget)
 	return strStyle;
 }
 
-QString CStyleProxy::queryStyleSheet(QWidget* widget, ESubCtrl subCtrl, EPseudoStates pseudoState, QString value)
+QString CStyleSheetProxy::queryStyleSheet(QWidget* widget, ESubCtrl subCtrl, EPseudoStates pseudoState, QString value)
 {
 	return "";
 }
 
-QString CStyleProxy::querySubCtrlName(ESubCtrl subCtrl)
+QString CStyleSheetProxy::querySubCtrlName(ESubCtrl subCtrl)
 {
 	return queryEnumName<ESubCtrl>(subCtrl);
 }
 
-QString CStyleProxy::queryPseudoStateName(EPseudoStates ePseudoState)
+QString CStyleSheetProxy::queryPseudoStateName(EPseudoStates ePseudoState)
 {
 	return queryEnumName<EPseudoStates>(ePseudoState);
 }
 
-QString CStyleProxy::marginToString(QMargins margin)
+QString CStyleSheetProxy::marginToString(QMargins margin)
 {
 	return QString("%1 %2 %3 %4").arg(margin.top()).arg(margin.right()).arg(margin.bottom()).arg(margin.left());
 }

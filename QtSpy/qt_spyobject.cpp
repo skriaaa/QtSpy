@@ -36,14 +36,16 @@
 #include <QTime>
 #include <fstream>
 #include <QSignalSpy>
-#include <qt_spydlg.h>
-#include "publicfunction.h"
 #include <QThread>
 #include <QStackedLayout>
 #include <QGraphicsView>
 #include <QGraphicsItem>
 #include <QButtonGroup>
+#include <dialog/qt_spydlg.h>
+#include "dialog/MemoryMonitorDlg.h"
+#include "publicfunction.h"
 #include "qt_spygraphics.h"
+#include "dialog/ObjectTree.h"
 
 CSpyMainWindow::CSpyMainWindow(QWidget* parent):QDialog(parent)
 {
@@ -98,7 +100,7 @@ void CSpyMainWindow::keyPressEvent(QKeyEvent* event)
 }
 
 
-QTreeWidget* CSpyMainWindow::tree()
+CWidgetSpyTree* CSpyMainWindow::tree()
 {
 	return m_pTree;
 }
@@ -254,6 +256,12 @@ bool CQtSpyObject::initToolWindow()
 		});
 	menuDebug->addAction(actionStatusInfo);
 
+	QAction* actionMem = new QAction("内存监控");
+	QObject::connect(actionMem, &QAction::triggered, [=]() {
+		showMemoryMonitor();
+		});
+	menuDebug->addAction(actionMem);
+
 
 	QMenu* menuResource = new QMenu(_QStr("资源"));
 	QAction* menuResourceManage = menuResource->addAction("管理");
@@ -288,8 +296,8 @@ bool CQtSpyObject::initToolWindow()
 			QApplication::setStyle(QStyleFactory::create(strStyleName));
 			});
 	}
-	QMenu* menuSimulateDPI = menuSetting->addMenu("模拟DPI");
 	// 暂时屏蔽 skria
+	//QMenu* menuSimulateDPI = menuSetting->addMenu("模拟DPI");
 	//QObject::connect(menuSimulateDPI->addAction("重置系统值"), &QAction::triggered, []() {
 	//	QScreen* screen = QGuiApplication::primaryScreen();
 	//	if (screen) {
@@ -332,8 +340,6 @@ bool CQtSpyObject::initToolWindow()
 
 bool CQtSpyObject::setTreeTarget(QPoint pt)
 {
-	ClearSpyTree();
-
 	QWidget* target = QApplication::widgetAt(pt);
 
 	if (OTo<QGraphicsView>(target))
@@ -350,71 +356,21 @@ bool CQtSpyObject::setTreeTarget(QPoint pt)
 
 bool CQtSpyObject::setTreeTarget(QGraphicsItem* target)
 {
-	ClearSpyTree();
-
 	m_pSpyViewItem = target;
 	m_pSpyWidget = nullptr;
 
-	QTreeWidgetItem* root = new QTreeWidgetItem;
-	m_pMainWindow->tree()->addTopLevelItem(root);
-	AddSubSpyNode(target, root);
+	m_pMainWindow->tree()->setTreeTarget(target);
+	m_mapWidgetNode = m_pMainWindow->tree()->m_mapWidgetNode;
 	return true;
 }
 
 bool CQtSpyObject::setTreeTarget(QWidget* target)
 {
-	ClearSpyTree();
-
 	m_pSpyWidget = target;
 	m_pSpyViewItem = nullptr;
 
-	QTreeWidgetItem* root = new QTreeWidgetItem;
-	m_pMainWindow->tree()->addTopLevelItem(root);
-	AddSubSpyNode(target, root);
-	return true;
-}
-
-bool CQtSpyObject::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
-	if (parent && parentNode) {
-		m_mapWidgetNode.insert(std::make_pair(parent, parentNode));
-		parentNode->setText(0, ObjectString(parent));
-		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
-		QList<QWidget*> children = parent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
-		for (QWidget* child : children) {
-			QTreeWidgetItem* treenode = new QTreeWidgetItem();
-			parentNode->addChild(treenode);
-			AddSubSpyNode(child, treenode);
-		}
-		if (OTo<QGraphicsView>(parent))
-		{
-			auto arrItems = OTo<QGraphicsView>(parent)->items();
-			for (QGraphicsItem* item : arrItems)
-			{
-				if (item->parentItem() == nullptr)
-				{
-					QTreeWidgetItem* treenode = new QTreeWidgetItem();
-					parentNode->addChild(treenode);
-					AddSubSpyNode(item, treenode);
-				}
-			}
-		}
-	}
-	return true;
-};
-
-
-bool CQtSpyObject::AddSubSpyNode(QGraphicsItem* parent, QTreeWidgetItem* parentNode)
-{
-	if (parent && parentNode) {
-		parentNode->setText(0, ObjectString(To<QObject>(parent)));
-		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
-		QList<QGraphicsItem*> children = parent->childItems();
-		for (QGraphicsItem* child : children) {
-			QTreeWidgetItem* treenode = new QTreeWidgetItem();
-			parentNode->addChild(treenode);
-			AddSubSpyNode(child, treenode);
-		}
-	}
+	m_pMainWindow->tree()->setTreeTarget(target);
+	m_mapWidgetNode = m_pMainWindow->tree()->m_mapWidgetNode;
 	return true;
 }
 
@@ -441,6 +397,7 @@ bool CQtSpyObject::ShowSystemInfo()
 			strAvailStyleName = strAvailStyleName + "," + styleName;
 		}
 	}
+
 	pInfo->setWindowTitle(_QStr("系统信息"));
 	pInfo->AddAttribute(_QStr("程序构建时CPU架构"), QSysInfo::buildCpuArchitecture());
 	pInfo->AddAttribute(_QStr("程序运行时CPU架构"), QSysInfo::currentCpuArchitecture());
@@ -467,6 +424,13 @@ bool CQtSpyObject::ShowStatusInfo()
 {
 	CStatusInfoWnd* pInfo = new CStatusInfoWnd();
 	pInfo->ShowOnTop();
+	return true;
+}
+
+bool CQtSpyObject::showMemoryMonitor()
+{
+	CMemoryMonitorDlg* pMemMonitorDlg = new CMemoryMonitorDlg();
+	pMemMonitorDlg->ShowOnTop();
 	return true;
 }
 
@@ -542,13 +506,5 @@ bool CQtSpyObject::CheckColor()
 	m_pMainWindow->grabMouse();
 	m_pMainWindow->installEventFilter(this);
 	QApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
-	return true;
-}
-
-
-bool CQtSpyObject::ClearSpyTree()
-{
-	m_pMainWindow->tree()->clear();
-	m_mapWidgetNode.clear();
 	return true;
 }

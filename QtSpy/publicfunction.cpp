@@ -4,6 +4,7 @@
 #include <QDialog>
 #include <QPushButton>
 #include <QLineEdit>
+#include <QLayout>
 #include <QLabel>
 #include <QComboBox>
 #include <QGraphicsView>
@@ -88,15 +89,17 @@ QString ObjectString(QObject* object)
 			auto typeWidget = dynamic_cast<QComboBox*>(object);
 			strText = typeWidget->windowTitle();
 		}
-		else {
-			strText = "widget";
-		}
+		strText += " | " + object->objectName();
 	}
 	else if (OTo<QGraphicsItem>(object))
 	{
 		//strText = "graphicsItem";
 		strText = QString("%1=0x%2").arg("graphicsItem").arg((quintptr)OTo<QGraphicsItem>(object),
 				QT_POINTER_SIZE * 2, 16, QChar('0'));
+	}
+	else if(OTo<QLayout>(object))
+	{
+		strText += " | " + object->objectName();
 	}
 
 	QString strItemInfo = QString("%1(%2)").arg(objectClass(object)).arg(strText);

@@ -7,6 +7,7 @@ class QRect;
 class QString;
 class QGraphicsItem;
 class QObject;
+class QLayout;
 QPoint MapToGlobal(QWidget* pWidget, QPoint pt);
 
 QPoint MapFromGlobal(QWidget* pWidget, QPoint pt);
@@ -45,7 +46,7 @@ T queryEnumValue(int nIndex)
 template <typename T>
 QString queryEnumName(T enumItem)
 {
-	if (static_cast<int>(enumItem) == 0)
+	if (static_cast<int>(enumItem) == -1)
 	{
 		return "";
 	}
@@ -65,4 +66,3 @@ int queryEnumCount()
 {
 	return QMetaEnum::fromType<T>().keyCount();
 }
-

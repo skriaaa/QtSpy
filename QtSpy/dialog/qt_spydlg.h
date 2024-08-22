@@ -178,19 +178,12 @@ public:
 public:
 	QObject* m_pMonitorObject;
 protected:
+	void initWidget();
 	bool eventFilter(QObject* pObject, QEvent* event) override;
 private:
 	QString EventInfo(QEvent* event);
 	CGraphicsItemSpy* m_pGraphicsSpy{ nullptr };
-};
-
-class CStyleEditWnd : public CXDialog {
-public:
-	CStyleEditWnd(QWidget* parent = nullptr);
-public:
-	bool EditWidgetStyle(QWidget* pWidget);
-public:
-	QWidget* m_pTargetWidget;
+	bool m_bFilterEvent = false;
 };
 
 //class CResourceManageWnd : public CXDialog {
@@ -352,40 +345,3 @@ public:
 //	}
 //};
 
-class CWidgetSpyTree : public QTreeWidget {
-public:
-	CWidgetSpyTree(QWidget* parent = nullptr);
-protected:
-	bool eventFilter(QObject* obj, QEvent* event) override;
-private:
-	void showContextMenu(const QPoint& pos);
-
-	void ChangeWidgetVisible(QPoint ptGlobal);
-
-	void ChangeWidgetEnable(QPoint ptGlobal);
-
-	void ChangeWidgetPosOrSize(QPoint ptGlobal);
-
-	void IndicatorWidget(QPoint ptGlobal);
-
-	void ShowSignalSlot(QPoint ptGlobal, bool bRecusive = false);
-
-	bool ShowWidgetInfo(const QPoint& pos);
-
-	bool ShowWidgetStatus(const QPoint& pos);
-
-	bool ShowWidgetResourceHub(const QPoint& pos);
-
-	bool ShowEventTrace(const QPoint& pos);
-
-	bool SetUserDraw(const QPoint& pos);
-
-	bool ShowStyleEdit(const QPoint& pos);
-
-	bool SpyParentWidget(const QPoint& pos);
-
-	bool SpyFirstParentWidget(const QPoint& pos);
-
-	QGraphicsItem* graphicsData(QTreeWidgetItem* item);
-	QWidget* widgetData(QTreeWidgetItem* item);
-};

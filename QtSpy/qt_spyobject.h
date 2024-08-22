@@ -7,6 +7,7 @@
 #include <QMainWindow>
 #include <QTimer>
 #include <QTextEdit>
+class CWidgetSpyTree;
 class QGraphicsItem;
 enum class EScreenMouseAction {
 	None,
@@ -26,13 +27,13 @@ public:
 	CQtSpyObject* spyObject();
 	void initWindow(CQtSpyObject* object);
 	void setMenuBar(QMenuBar* menuBar);
-	QTreeWidget* tree();
+	CWidgetSpyTree* tree();
 	virtual void keyPressEvent(QKeyEvent* event);
 protected:
 	void initSpyTree();
 	void clearSpyTree();
 private:
-	QTreeWidget* m_pTree{ nullptr };
+	CWidgetSpyTree* m_pTree{ nullptr };
 	CQtSpyObject* m_pSpyObject{ nullptr };
 };
 
@@ -51,11 +52,9 @@ public:
 	bool setTreeTarget(QWidget* widget);
 public:
 	bool initToolWindow();
-	bool ClearSpyTree();
-	bool AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode);
-	bool AddSubSpyNode(QGraphicsItem* parent, QTreeWidgetItem* parentNode);
 	bool ShowSystemInfo();
 	bool ShowStatusInfo();
+	bool showMemoryMonitor();
 	bool ShowSystemFont();
 	bool SearchSpyTreeByName();
 	bool SearchSpyTreeByCursor();
