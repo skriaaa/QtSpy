@@ -142,10 +142,10 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 				if (pTarget) {
 					qDebug() << pTarget;
 					if (m_pSpyWidget) {
-						for (auto it : m_mapWidgetNode) {
-							if (it.first == pTarget) {
-								m_pMainWindow->tree()->setCurrentItem(it.second);
-							}
+						if(m_mapWidgetNode.contains(pTarget))
+						{
+							m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pTarget]);
+							m_mapWidgetNode[pTarget]->setExpanded(true);
 						}
 					}
 				}
@@ -449,25 +449,51 @@ bool CQtSpyObject::SearchSpyTreeByName()
 	dlg.setLayout(new QVBoxLayout());
 	auto layout = dynamic_cast<QVBoxLayout*>(dlg.layout());
 	auto layout1 = new QHBoxLayout();
-	auto layout2 = new QHBoxLayout();
-	auto layout3 = new QHBoxLayout();
+	QPushButton* pBtnYes, * pBtnNext, * pBtnPrev;
+	QLineEdit* pEdit;
 	layout1->addWidget(new QLabel("对象名称"));
-	layout1->addWidget(new QLineEdit());
-	layout1->addWidget(new QPushButton("确定"));
-	QObject::connect(dynamic_cast<QPushButton*>(layout1->itemAt(2)->widget()), &QPushButton::clicked, [&]() {
-		QString name = dynamic_cast<QLineEdit*>(layout1->itemAt(1)->widget())->text();
+	layout1->addWidget(pEdit = new QLineEdit());
+	layout1->addWidget(pBtnYes = new QPushButton("确定"));
+	layout1->addWidget(pBtnNext = new QPushButton("下一个"));
+	layout1->addWidget(pBtnPrev = new QPushButton("上一个"));
+	QList<QWidget*> arrTargetItem;
+	int nCurrentIndex = 0;
+	QObject::connect(pBtnYes, &QPushButton::clicked, [&]() {
+		QString strName = pEdit->text();
 		if (m_pSpyWidget) {
-			for (auto it : m_mapWidgetNode) {
-				if (it.first->objectName().compare(name) == 0) {
-					m_pMainWindow->tree()->setCurrentItem(it.second);
+			for (auto pWidget : m_mapWidgetNode.keys()) {
+				if (pWidget->objectName().compare(strName) == 0
+					|| strName.compare(pWidget->metaObject()->className()) == 0)
+				{
+					arrTargetItem.append(pWidget);
 				}
 			}
+			if (!arrTargetItem.empty())
+			{
+				m_mapWidgetNode[arrTargetItem.front()]->setExpanded(true);
+				m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[arrTargetItem.front()]);
+			}
 		}
-		dlg.close();
 		});
+	QObject::connect(pBtnNext, &QPushButton::clicked, [&]() {
+		if(arrTargetItem.size() - 1 > nCurrentIndex)
+		{
+			nCurrentIndex++;
+			QWidget* pWidget = *(arrTargetItem.begin() + nCurrentIndex);
+			m_mapWidgetNode[pWidget]->setExpanded(true);
+			m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pWidget]);
+		}
+		});
+	QObject::connect(pBtnPrev, &QPushButton::clicked, [&]() {
+		if (0 > nCurrentIndex)
+		{
+			nCurrentIndex--;
+			QWidget* pWidget = *(arrTargetItem.begin() + nCurrentIndex);
+			m_mapWidgetNode[pWidget]->setExpanded(true);
+			m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pWidget]);
+		}
+	});
 	layout->addLayout(layout1);
-	layout->addLayout(layout2);
-	layout->addLayout(layout3);
 	dlg.exec();
 	return true;
 }

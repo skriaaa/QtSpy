@@ -130,12 +130,8 @@ endmacro()
 
 set(appendSysValue "" "")
 
-# 将路径添加到系统环境变量中 没搞好，回头再搞
+# 将路径添加到系统环境变量中
 macro(addPathToSysVar targetPath varName)
-	#message("appendSysValue is ${appendSysValue}")
-	#set(newValue "${appendSysValue};${targetPath}")
-	#set(appendSysValue ${newValue} PARENT_SCOPE)
-	#message("modvalue is ${appendSysValue}")
 	set(value $ENV{${varName}})
 	if("${value}" STREQUAL "")
 		set(value ${targetPath})

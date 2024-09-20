@@ -65,6 +65,6 @@ private:
 	CSpyMainWindow* m_pMainWindow;
 	QWidget* m_pSpyWidget;
 	QGraphicsItem* m_pSpyViewItem{nullptr};
-	std::map<QWidget*, QTreeWidgetItem*> m_mapWidgetNode;
+	QHash<QWidget*, QTreeWidgetItem*> m_mapWidgetNode;
 	EScreenMouseAction m_eCursorAction = EScreenMouseAction::None;
 };

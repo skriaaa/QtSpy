@@ -518,16 +518,26 @@ bool CLogTraceWnd::AddInfo(QString strInfo)
 	strInfo = QString("%1 | %2 | %3").arg(m_nCount++, 4, 10, QLatin1Char('0')).arg(QTime::currentTime().toString("hh:mm:ss::zzz")).arg(strInfo);
 	do
 	{
-		if (!m_strHas.isEmpty()) {
-			if (!strInfo.contains(m_strHas, Qt::CaseInsensitive)) {
+		bool bHas = m_arrStrHas.isEmpty();
+		for(auto strHas : m_arrStrHas)
+		{
+			if (strInfo.contains(strHas, Qt::CaseInsensitive)) {
+				break;
+			}
+		}
+
+		if(!bHas)
+		{
+			return false;
+		}
+
+		for(auto strNo : m_arrStrNo)
+		{
+			if (strInfo.contains(strNo, Qt::CaseInsensitive)) {
 				return false;
 			}
 		}
-		if (!m_strNo.isEmpty()) {
-			if (strInfo.contains(m_strNo, Qt::CaseInsensitive)) {
-				return false;
-			}
-		}
+
 		m_listModel.insertRow(m_listModel.rowCount());
 		m_listModel.setData(m_listModel.index(m_listModel.rowCount() - 1), strInfo);
 		if (m_bTrace)
@@ -564,7 +574,14 @@ void CLogTraceWnd::initWidgets()
 	auto control_2 = new QHBoxLayout();
 	auto editFilterHas = new QLineEdit();
 	QObject::connect(editFilterHas, &QLineEdit::textChanged, [&](const QString& str) {
-		this->m_strHas = str;
+		if (str.isEmpty())
+		{
+			m_arrStrNo.clear();
+		}
+		else
+		{
+			m_arrStrHas = str.split("|");
+		}
 		});
 	control_2->addWidget(new QLabel("has:"));
 	control_2->addWidget(editFilterHas);
@@ -572,7 +589,14 @@ void CLogTraceWnd::initWidgets()
 	auto control_3 = new QHBoxLayout();
 	auto editFilterNo = new QLineEdit();
 	QObject::connect(editFilterNo, &QLineEdit::textChanged, [&](const QString& str) {
-		this->m_strNo = str;
+		if(str.isEmpty())
+		{
+			m_arrStrNo.clear();
+		}
+		else
+		{
+			m_arrStrNo = str.split("|");
+		}
 		});
 	control_3->addWidget(new QLabel("no:"));
 	control_3->addWidget(editFilterNo);

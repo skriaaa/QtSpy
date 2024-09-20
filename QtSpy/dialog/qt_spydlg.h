@@ -148,8 +148,8 @@ private:
 public:
 	QStringListModel m_listModel;
 	QListView*		 m_listView;
-	QString m_strHas;
-	QString m_strNo;
+	QStringList m_arrStrHas;
+	QStringList m_arrStrNo;
 	int		m_nCount{ 0 };
 	bool	m_bTrace{ true };
 };

@@ -59,6 +59,9 @@ void CStyleEditWnd::initWidgets()
 			auto editStyle = dynamic_cast<QPlainTextEdit*>(layout()->itemAt(0)->widget());
 			QString strStyleSheet = editStyle->toPlainText();
 			m_pTargetWidget->setStyleSheet(strStyleSheet);
+			m_pTargetWidget->style()->unpolish(m_pTargetWidget);
+			m_pTargetWidget->style()->polish(m_pTargetWidget);
+			m_pTargetWidget->ensurePolished();
 		}
 		});
 }

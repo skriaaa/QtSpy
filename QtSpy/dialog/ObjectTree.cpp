@@ -51,7 +51,7 @@ bool CWidgetSpyTree::setTreeTarget(QObject* target)
 
 bool CWidgetSpyTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 	if (parent && parentNode) {
-		m_mapWidgetNode.insert(std::make_pair(parent, parentNode));
+		m_mapWidgetNode[parent] = parentNode;
 		parentNode->setText(0, ObjectString(parent));
 		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
 		QList<QWidget*> children = parent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);

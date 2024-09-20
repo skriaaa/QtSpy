@@ -48,7 +48,7 @@ public:
 	template<class T> T* itemData(QTreeWidgetItem* item);
 	QGraphicsItem* graphicsData(QTreeWidgetItem* item);
 	QWidget* widgetData(QTreeWidgetItem* item);
-	std::map<QWidget*, QTreeWidgetItem*> m_mapWidgetNode;
+	QHash<QWidget*, QTreeWidgetItem*> m_mapWidgetNode;
 };
 
 
