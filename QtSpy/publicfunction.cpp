@@ -10,31 +10,102 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QGraphicsItem>
+#include <QGraphicsProxyWidget>
+
+QPoint convertGlobalPointToWidget(QPoint ptGlobal, QWidget* pTargetWidget)
+{
+	if (nullptr == pTargetWidget)
+	{
+		return ptGlobal;
+	}
+
+	QWidget* pWidget = pTargetWidget;
+	for (; nullptr != pWidget; pWidget = pWidget->parentWidget())
+	{
+		QGraphicsProxyWidget* pProxyWidget = pWidget->graphicsProxyWidget();
+		if (nullptr == pProxyWidget)
+		{
+			continue;
+		}
+
+		QGraphicsScene* pScene = pProxyWidget->scene();
+		if (nullptr == pScene)
+		{
+			continue;
+		}
+
+		QList<QGraphicsView*> arrViews = pScene->views();
+		if (arrViews.empty() || nullptr == arrViews.front())
+		{
+			continue;
+		}
+
+		QPoint ptScene = arrViews.front()->mapToScene(arrViews.front()->mapFromGlobal(ptGlobal)).toPoint();
+		return pTargetWidget->mapFrom(pWidget, pProxyWidget->mapFromScene(ptScene).toPoint());
+	}
+
+	return pTargetWidget->mapFromGlobal(ptGlobal);
+}
+
+QPoint convertWidgetPointToGlobal(QPoint ptGlobal, QPoint ptWidget, QObject* pTarget)
+{
+	QWidget* pTargetWidget = dynamic_cast<QWidget*>(pTarget);
+	if (nullptr == pTargetWidget)
+	{
+		return ptGlobal;
+	}
+
+	QWidget* pWidget = pTargetWidget;
+	for (; nullptr != pWidget; pWidget = pWidget->parentWidget())
+	{
+		QGraphicsProxyWidget* pProxyWidget = pWidget->graphicsProxyWidget();
+		if (nullptr == pProxyWidget)
+		{
+			continue;
+		}
+
+		QGraphicsScene* pScene = pProxyWidget->scene();
+		if (nullptr == pScene)
+		{
+			continue;
+		}
+
+		QList<QGraphicsView*> arrViews = pScene->views();
+		if (arrViews.empty() || nullptr == arrViews.front())
+		{
+			continue;
+		}
+
+		QPoint ptScene = pProxyWidget->mapToScene(pTargetWidget->mapTo(pWidget, ptWidget)).toPoint();
+		return arrViews.front()->mapToGlobal(arrViews.front()->mapFromScene(ptScene));
+	}
+
+	return pTargetWidget->mapToGlobal(ptWidget);
+}
+
 QPoint MapToGlobal(QWidget* pWidget, QPoint pt)
 {
-	return pWidget->mapToGlobal(pt);
+	return convertWidgetPointToGlobal(pt, pt, pWidget);
 }
 
 QRect MapToGlobal(QWidget* pWidget, QRect rc)
 {
-	return QRect(pWidget->mapToGlobal(rc.topLeft()), pWidget->mapToGlobal(rc.bottomRight()));
+	return QRect(MapToGlobal(pWidget, rc.topLeft()), MapToGlobal(pWidget, rc.bottomRight()));
 }
 
 QPoint MapFromGlobal(QWidget* pWidget, QPoint pt)
 {
-	return pWidget->mapFromGlobal(pt);
+	return convertGlobalPointToWidget(pt, pWidget);
 }
 
 QRect MapFromGlobal(QWidget* pWidget, QRect rc)
 {
-	return QRect(pWidget->mapFromGlobal(rc.topLeft()), pWidget->mapFromGlobal(rc.bottomRight()));
+	return QRect(MapFromGlobal(pWidget, rc.topLeft()), MapFromGlobal(pWidget, rc.bottomRight()));
 }
 
 QRect ScreenRect(QWidget* pWidget)
 {
-	auto geo = pWidget->geometry();
-	auto lt = pWidget->mapToGlobal(QPoint(0, 0));
-	return QRect(lt, QSize(geo.width(), geo.height()));
+	return MapToGlobal(pWidget, pWidget->rect());
 }
 
 QRect ScreenRect(QGraphicsItem* pItem)

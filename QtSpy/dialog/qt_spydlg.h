@@ -174,14 +174,16 @@ public:
 	~CEventTraceWnd();
 public:
 	bool MonitorWidget(QObject* pWidget);
-	bool AddInfo(QEvent* event);
+	template <typename T>
+	bool AddInfo(T* pTarget, QEvent* event);
 public:
-	QObject* m_pMonitorObject;
+	QSet<QObject*> m_arrMonitorObject;
 protected:
 	void initWidget();
 	bool eventFilter(QObject* pObject, QEvent* event) override;
 private:
-	QString EventInfo(QEvent* event);
+	template <typename T>
+	QString EventInfo(T* pTarget, QEvent* event);
 	CGraphicsItemSpy* m_pGraphicsSpy{ nullptr };
 	bool m_bFilterEvent = false;
 };

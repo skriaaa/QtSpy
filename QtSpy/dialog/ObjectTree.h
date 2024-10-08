@@ -1,7 +1,7 @@
 ﻿#pragma once
 #include <QTreeWidget>
 #include <QGraphicsItem>
-
+class CEventTraceWnd;
 class CWidgetSpyTree : public QTreeWidget {
 public:
 	CWidgetSpyTree(QWidget* parent = nullptr);
@@ -45,10 +45,15 @@ public:
 
 	void showObjectTree(const QPoint& pos);
 
+	void resetEventTraceWnd();
+
+	void showEventTraceWnd();
+
 	template<class T> T* itemData(QTreeWidgetItem* item);
 	QGraphicsItem* graphicsData(QTreeWidgetItem* item);
 	QWidget* widgetData(QTreeWidgetItem* item);
 	QHash<QWidget*, QTreeWidgetItem*> m_mapWidgetNode;
+	CEventTraceWnd* m_pEventWnd;
 };
 
 

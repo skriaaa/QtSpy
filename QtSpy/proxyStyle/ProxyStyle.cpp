@@ -1,5 +1,5 @@
 #include "ProxyStyle.h"
-
+#include <QStyleOption>
 CCommonProxyStyle::CCommonProxyStyle(QStyle* style /*= nullptr*/)
 {
 
@@ -38,6 +38,10 @@ void CCommonProxyStyle::drawPrimitive(PrimitiveElement element, const QStyleOpti
 
 void CCommonProxyStyle::drawControl(ControlElement element, const QStyleOption* option, QPainter* painter, const QWidget* widget /*= nullptr*/) const
 {
+	if(option->state.testFlag(QStyle::State_MouseOver))
+	{
+		int a = 0;
+	}
 	QProxyStyle::drawControl(element, option, painter, widget);
 }
 

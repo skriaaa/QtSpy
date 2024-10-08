@@ -7,6 +7,7 @@
 #include <QAbstractButton>
 #include <QContextMenuEvent>
 #include <QGraphicsView>
+#include <QGraphicsProxyWidget>
 
 #include "qt_spydlg.h"
 #include "StyleEditDlg.h"
@@ -22,35 +23,42 @@ CWidgetSpyTree::CWidgetSpyTree(QWidget* parent /*= nullptr*/) : QTreeWidget(pare
 
 	setSelectionBehavior(QAbstractItemView::SelectRows);
 	setSelectionMode(QAbstractItemView::SingleSelection);
+	m_pEventWnd = nullptr;
 }
 
 bool CWidgetSpyTree::setTreeTarget(QGraphicsItem* target)
 {
+	resetEventTraceWnd();
 	m_mapWidgetNode.clear();
 	clear();
 
 	QTreeWidgetItem* root = new QTreeWidgetItem;
 	addTopLevelItem(root);
 	AddSubSpyNode(target, root);
+
+	showEventTraceWnd();
 	return true;
 }
 
 bool CWidgetSpyTree::setTreeTarget(QObject* target)
 {
+	resetEventTraceWnd();
 	m_mapWidgetNode.clear();
 	clear();
-
 	if(OTo<QWidget>(target))
 	{
 		QTreeWidgetItem* root = new QTreeWidgetItem;
 		addTopLevelItem(root);
 		AddSubSpyNode(OTo<QWidget>(target), root);
+		m_pEventWnd->setWindowTitle(ObjectString(target));
+		showEventTraceWnd();
 	}
 	return true;
 }
 
 bool CWidgetSpyTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 	if (parent && parentNode) {
+		m_pEventWnd->MonitorWidget(parent);
 		m_mapWidgetNode[parent] = parentNode;
 		parentNode->setText(0, ObjectString(parent));
 		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
@@ -88,6 +96,14 @@ bool CWidgetSpyTree::AddSubSpyNode(QGraphicsItem* parent, QTreeWidgetItem* paren
 			QTreeWidgetItem* treenode = new QTreeWidgetItem();
 			parentNode->addChild(treenode);
 			AddSubSpyNode(child, treenode);
+		}
+
+		if(To<QGraphicsProxyWidget>(parent))
+		{
+			QWidget* widget = To<QGraphicsProxyWidget>(parent)->widget();
+			QTreeWidgetItem* treenode = new QTreeWidgetItem();
+			parentNode->addChild(treenode);
+			AddSubSpyNode(widget, treenode);
 		}
 	}
 	return true;
@@ -612,6 +628,22 @@ void CWidgetSpyTree::showObjectTree(const QPoint& pos)
 		dlg->layout()->addWidget(tree);
 		dlg->show();
 	}
+}
+
+void CWidgetSpyTree::resetEventTraceWnd()
+{
+	if (m_pEventWnd)
+	{
+		delete m_pEventWnd;
+	}
+	m_pEventWnd = new CEventTraceWnd;
+}
+
+void CWidgetSpyTree::showEventTraceWnd()
+{
+	m_pEventWnd->ShowOnTop();
+	m_pEventWnd->move(mapToGlobal(rect().topRight()));
+	connect(m_pEventWnd, &QDialog::destroyed, this, [&]() {m_pEventWnd = nullptr; });
 }
 
 template<class T>

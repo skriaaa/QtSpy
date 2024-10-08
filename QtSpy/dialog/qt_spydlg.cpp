@@ -516,12 +516,17 @@ CLogTraceWnd::CLogTraceWnd(QWidget* parent /*= nullptr*/) :CXDialog(parent)
 bool CLogTraceWnd::AddInfo(QString strInfo)
 {
 	strInfo = QString("%1 | %2 | %3").arg(m_nCount++, 4, 10, QLatin1Char('0')).arg(QTime::currentTime().toString("hh:mm:ss::zzz")).arg(strInfo);
+	if(strInfo.contains("event [MouseButtonPress] —— QWidget( | qt_scrollarea_viewport)"))
+	{
+		Q_ASSERT(1);
+	}
 	do
 	{
 		bool bHas = m_arrStrHas.isEmpty();
 		for(auto strHas : m_arrStrHas)
 		{
 			if (strInfo.contains(strHas, Qt::CaseInsensitive)) {
+				bHas = true;
 				break;
 			}
 		}
@@ -576,7 +581,7 @@ void CLogTraceWnd::initWidgets()
 	QObject::connect(editFilterHas, &QLineEdit::textChanged, [&](const QString& str) {
 		if (str.isEmpty())
 		{
-			m_arrStrNo.clear();
+			m_arrStrHas.clear();
 		}
 		else
 		{
@@ -610,7 +615,12 @@ CEventTraceWnd::CEventTraceWnd(QWidget* parent /*= nullptr*/) : CLogTraceWnd(par
 {
 	initWidget();
 	setAttribute(Qt::WA_DeleteOnClose, true);
-	m_pMonitorObject = nullptr;
+	QObject::connect(this, &QDialog::close, [=]() {
+		for(auto pTarget : m_arrMonitorObject)
+		{
+			pTarget->removeEventFilter(this);
+		}
+	});
 }
 
 CEventTraceWnd::~CEventTraceWnd()
@@ -630,22 +640,18 @@ bool CEventTraceWnd::MonitorWidget(QObject* object)
 		}
 		else
 		{
-			m_pMonitorObject = object;
-			m_pMonitorObject->installEventFilter(this);
-			QObject::connect(this, &QDialog::close, [&]() {
-				if (m_pMonitorObject) {
-					m_pMonitorObject->removeEventFilter(this);
-				}
-				});
+			m_arrMonitorObject.insert(object);
+			object->installEventFilter(this);
 		}
 		return true;
 	}
 	return false;
 }
 
-bool CEventTraceWnd::AddInfo(QEvent* event)
+template <typename T>
+bool CEventTraceWnd::AddInfo(T* pTarget, QEvent* event)
 {
-	return CLogTraceWnd::AddInfo(EventInfo(event));
+	return CLogTraceWnd::AddInfo(EventInfo(pTarget, event));
 }
 
 void CEventTraceWnd::initWidget()
@@ -659,8 +665,8 @@ void CEventTraceWnd::initWidget()
 
 bool CEventTraceWnd::eventFilter(QObject* pObject, QEvent* event)
 {
-	if (pObject == m_pMonitorObject) {
-		if (AddInfo(event) && m_bFilterEvent)
+	if ( m_arrMonitorObject.contains(pObject)) {
+		if (AddInfo(pObject, event) && m_bFilterEvent)
 		{
 			return true;
 		}
@@ -671,29 +677,42 @@ bool CEventTraceWnd::eventFilter(QObject* pObject, QEvent* event)
 bool CGraphicsItemSpy::sceneEventFilter(QGraphicsItem* watched, QEvent* event)
 {
 	if (watched == m_pTarget) {
-		m_pWnd->AddInfo(event);
+		m_pWnd->AddInfo(watched, event);
 	}
 	return QGraphicsItem::sceneEventFilter(watched, event);
 }
 
-QString CEventTraceWnd::EventInfo(QEvent* event)
+template<typename T>
+QString CEventTraceWnd::EventInfo(T* pTarget, QEvent* event)
 {
+	QString strTarget = " —— ";
+	if (dynamic_cast<QObject*>(pTarget))
+	{
+		strTarget += ObjectString(dynamic_cast<QObject*>(pTarget));
+	}
 	if (!event) {
-		return _QStr("event [NULL]");
+		return _QStr("event [NULL]") + strTarget;
 	}
 	auto type = event->type();
 	for (int i = 0; i < queryEnumCount<QEvent::Type>(); ++i)
 	{
 		if (type == queryEnumValue<QEvent::Type>(i))
 		{
-			return QString("event [%1]").arg(queryEnumName<QEvent::Type>(i));
+			QString strInfo = QString("event [%1]%2").arg(queryEnumName<QEvent::Type>(i)).arg(strTarget);
+			if (event->type() == QEvent::MouseButtonPress)
+			{
+				QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(event);
+				QString strPos = QString("Pos(%1,%2) GlobalPos(%3,%4)-(%5,%6)").arg(pMouseEvent->x()).arg(pMouseEvent->y()).arg(pMouseEvent->globalX()).arg(pMouseEvent->globalY()).arg(QCursor::pos().x()).arg(QCursor::pos().y());
+				strInfo += strPos;
+			}
+			return strInfo;
 		}
 	}
 
 	if (type >= QEvent::User && type < QEvent::MaxUser) {
-		return _QStr("event [user define]");
+		return _QStr("event [user define]") + strTarget;
 	}
-	return _QStr("event [unknow]");
+	return _QStr("event [unknow]") + strTarget;
 }
 
 CSignalSpyWnd::CSignalSpy::CSignalSpy(const QObject* obj, const QMetaMethod& signal) :QSignalSpy(obj, signal)

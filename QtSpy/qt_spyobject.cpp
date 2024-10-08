@@ -41,6 +41,7 @@
 #include <QGraphicsView>
 #include <QGraphicsItem>
 #include <QButtonGroup>
+#include <QGraphicsProxyWidget>
 #include <dialog/qt_spydlg.h>
 #include "dialog/MemoryMonitorDlg.h"
 #include "publicfunction.h"
