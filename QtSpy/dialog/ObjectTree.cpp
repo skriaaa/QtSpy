@@ -28,7 +28,7 @@ CWidgetSpyTree::CWidgetSpyTree(QWidget* parent /*= nullptr*/) : QTreeWidget(pare
 
 bool CWidgetSpyTree::setTreeTarget(QGraphicsItem* target)
 {
-	resetEventTraceWnd();
+	//resetEventTraceWnd();
 	m_mapWidgetNode.clear();
 	clear();
 
@@ -36,13 +36,13 @@ bool CWidgetSpyTree::setTreeTarget(QGraphicsItem* target)
 	addTopLevelItem(root);
 	AddSubSpyNode(target, root);
 
-	showEventTraceWnd();
+	//showEventTraceWnd();
 	return true;
 }
 
 bool CWidgetSpyTree::setTreeTarget(QObject* target)
 {
-	resetEventTraceWnd();
+	//resetEventTraceWnd();
 	m_mapWidgetNode.clear();
 	clear();
 	if(OTo<QWidget>(target))
@@ -50,15 +50,15 @@ bool CWidgetSpyTree::setTreeTarget(QObject* target)
 		QTreeWidgetItem* root = new QTreeWidgetItem;
 		addTopLevelItem(root);
 		AddSubSpyNode(OTo<QWidget>(target), root);
-		m_pEventWnd->setWindowTitle(ObjectString(target));
-		showEventTraceWnd();
+		//m_pEventWnd->setWindowTitle(ObjectString(target));
+		//showEventTraceWnd();
 	}
 	return true;
 }
 
 bool CWidgetSpyTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 	if (parent && parentNode) {
-		m_pEventWnd->MonitorWidget(parent);
+		//m_pEventWnd->MonitorWidget(parent);
 		m_mapWidgetNode[parent] = parentNode;
 		parentNode->setText(0, ObjectString(parent));
 		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
@@ -126,12 +126,14 @@ bool CWidgetSpyTree::eventFilter(QObject* obj, QEvent* event)
 void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 {
 	QMenu contextMenu(this);
+	QAction* actionSpyParent = contextMenu.addAction("父组件");
 	QAction* actionLocate = contextMenu.addAction("目标定位");
 	QAction* actionInfo = contextMenu.addAction("基础信息");
 	QAction* actionLayout = contextMenu.addAction("布局信息");
 	QAction* actionObject = contextMenu.addAction("对象树");
 	QAction* actionSignal = contextMenu.addAction("信号/槽");
 	QAction* actionEventTrace = contextMenu.addAction("事件跟踪");
+	QAction* actionEventTraceAll = contextMenu.addAction("事件跟踪All");
 	QAction* actionStyleEdit = contextMenu.addAction("风格编辑");
 	QAction* actionUserDrawParam = contextMenu.addAction("自绘控件");
 	QAction* actionWidgetStatus = contextMenu.addAction("组件状态");
@@ -139,7 +141,6 @@ void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 	QAction* actionChangeVisible = contextMenu.addAction("显示|隐藏");
 	QAction* actionChangeEnable = contextMenu.addAction("启用|禁用");
 	QAction* actionMoveOrScale = contextMenu.addAction("移动|缩放");
-	QAction* actionSpyParent = contextMenu.addAction("父组件");
 	QAction* actionSpyFirstParent = contextMenu.addAction("第一父组件");
 	QAction* selectedAction = contextMenu.exec(pos);
 	if (selectedAction == actionLocate) {
@@ -159,6 +160,9 @@ void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 	}
 	else if (selectedAction == actionEventTrace) {
 		ShowEventTrace(pos);
+	}
+	else if(selectedAction == actionEventTraceAll){
+		ShowEventTraceAll(pos);
 	}
 	else if (selectedAction == actionStyleEdit) {
 		ShowStyleEdit(pos);
@@ -369,7 +373,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 			CListInfoWnd* pInfo = new CListInfoWnd();
 			pInfo->setWindowTitle(ObjectString(To<QObject>(pItem)));
 			pInfo->AddAttribute(_QStr("class name"), objectClass(To<QObject>(pItem)));
-			pInfo->AddAttribute(_QStr("object name"), To<QObject>(pItem)->objectName());
+			pInfo->AddAttribute(_QStr("object name"), ::objectName(To<QObject>(pItem)));
 			pInfo->AddAttribute(_QStr("geometry"), QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
 			pInfo->AddAttribute(_QStr("screen geometry"), QString("(%1,%2,%3,%4)").arg(geoScreen.left()).arg(geoScreen.top()).arg(geoScreen.right()).arg(geoScreen.bottom()));
 			pInfo->AddAttribute(_QStr("geometry size"), QString("(%1,%2)").arg(geoScreen.width()).arg(geoScreen.height()));
@@ -521,6 +525,37 @@ bool CWidgetSpyTree::ShowEventTrace(const QPoint& pos)
 	return true;
 }
 
+void travelTreeItem(QTreeWidgetItem* pItem, std::function<void(QTreeWidgetItem* pItem)> fnOperation)
+{
+	if(nullptr == pItem)
+	{
+		return;
+	}
+	fnOperation(pItem);
+	for (int nIndex = 0; nIndex < pItem->childCount(); nIndex++)
+	{
+		travelTreeItem(pItem->child(nIndex), fnOperation);
+	}
+}
+
+bool CWidgetSpyTree::ShowEventTraceAll(const QPoint& pos)
+{
+	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
+
+	if (clickedItem) {
+		QObject* pTarget = widgetData(clickedItem) ? widgetData(clickedItem) : To<QObject>(graphicsData(clickedItem));
+		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd();
+		pEventTraceWnd->setWindowTitle(ObjectString(pTarget)+"[All]");
+		travelTreeItem(clickedItem, [=](QTreeWidgetItem* pItem) {
+			QObject* pTarget = widgetData(pItem) ? widgetData(pItem) : To<QObject>(graphicsData(pItem));
+			pEventTraceWnd->MonitorWidget(pTarget);
+		});
+		pEventTraceWnd->ShowOnTop();
+
+	}
+	return true;
+}
+
 bool CWidgetSpyTree::SetUserDraw(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
@@ -637,6 +672,7 @@ void CWidgetSpyTree::resetEventTraceWnd()
 		delete m_pEventWnd;
 	}
 	m_pEventWnd = new CEventTraceWnd;
+	m_pEventWnd->m_bShowEvent = false;
 }
 
 void CWidgetSpyTree::showEventTraceWnd()

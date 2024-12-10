@@ -27,6 +27,9 @@ QString ObjectString(QObject* pWidget);
 
 QString styleSheet(QWidget* widget);
 
+QWidget* widgetAt(QPoint pt);
+QGraphicsItem* graphicsItemAt(QPoint pt);
+
 template< class T>
 T* To(QGraphicsItem* p) {
 	return dynamic_cast<T*>(p);

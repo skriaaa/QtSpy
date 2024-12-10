@@ -158,14 +158,32 @@ class CEventTraceWnd;
 class CGraphicsItemSpy :public QGraphicsItem
 {
 public:
-	CGraphicsItemSpy(QGraphicsItem* target, CEventTraceWnd* wnd) :m_pTarget(target), m_pWnd(wnd) { m_pTarget->scene()->addItem(this); m_pTarget->installSceneEventFilter(this); }
-	~CGraphicsItemSpy() { m_pTarget->removeSceneEventFilter(this); m_pTarget->scene()->removeItem(this); }
+	CGraphicsItemSpy(QGraphicsScene* pScene, CEventTraceWnd* pWnd):m_pWnd(pWnd)
+	{ 
+		pScene->addItem(this);
+	}
+	~CGraphicsItemSpy() { 
+		if(scene())
+		{
+			scene()->removeItem(this);
+
+			for (auto pItem : m_arrMonitorItems)
+			{
+				pItem->removeSceneEventFilter(this);
+			}
+		}
+	}
 public:
+	void addTargetItem(QGraphicsItem* pItem)
+	{
+		pItem->installSceneEventFilter(this);
+		m_arrMonitorItems.insert(pItem);
+	}
 	void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget /* = nullptr */) override { Q_UNUSED(painter); Q_UNUSED(option); Q_UNUSED(widget) }
 	QRectF boundingRect() const override { return QRectF(); }
 	bool sceneEventFilter(QGraphicsItem* watched, QEvent* event) override;
 private:
-	QGraphicsItem* m_pTarget;
+	QSet<QGraphicsItem*> m_arrMonitorItems;
 	CEventTraceWnd* m_pWnd;
 };
 class CEventTraceWnd : public CLogTraceWnd{
@@ -178,13 +196,14 @@ public:
 	bool AddInfo(T* pTarget, QEvent* event);
 public:
 	QSet<QObject*> m_arrMonitorObject;
+	bool m_bShowEvent = true;
 protected:
 	void initWidget();
 	bool eventFilter(QObject* pObject, QEvent* event) override;
 private:
 	template <typename T>
 	QString EventInfo(T* pTarget, QEvent* event);
-	CGraphicsItemSpy* m_pGraphicsSpy{ nullptr };
+	QHash<QGraphicsScene*, CGraphicsItemSpy*> m_hashGraphicsSpy;
 	bool m_bFilterEvent = false;
 };
 

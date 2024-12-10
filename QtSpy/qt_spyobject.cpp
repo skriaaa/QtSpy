@@ -125,7 +125,6 @@ CQtSpyObject& CQtSpyObject::GetInstance()
 	return spy;
 }
 
-
 bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 {
 	if (watched->objectName().compare(QString("mainwindow"), Qt::CaseInsensitive) == 0) {
@@ -135,7 +134,7 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 				QMouseEvent* typeEvent = dynamic_cast<QMouseEvent*>(event);
 				QPoint ptMouse = typeEvent->globalPos();
 				qDebug() << "query widget at point:" << ptMouse;
-				QWidget* pTarget = QApplication::widgetAt(ptMouse);
+				QWidget* pTarget = widgetAt(ptMouse);
 				mainWindow->removeEventFilter(this);
 				mainWindow->releaseMouse();
 				QApplication::restoreOverrideCursor();
@@ -143,7 +142,7 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 				if (pTarget) {
 					qDebug() << pTarget;
 					if (m_pSpyWidget) {
-						if(m_mapWidgetNode.contains(pTarget))
+						if (m_mapWidgetNode.contains(pTarget))
 						{
 							m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pTarget]);
 							m_mapWidgetNode[pTarget]->setExpanded(true);
@@ -341,18 +340,28 @@ bool CQtSpyObject::initToolWindow()
 
 bool CQtSpyObject::setTreeTarget(QPoint pt)
 {
-	QWidget* target = QApplication::widgetAt(pt);
-
-	if (OTo<QGraphicsView>(target))
+	QWidget* pTarget = QApplication::widgetAt(pt);
+	if(pTarget && OTo<QGraphicsView>(pTarget->parent()))
 	{
-		QGraphicsItem* item = OTo<QGraphicsView>(target)->scene()->itemAt(pt, QTransform());
-		setTreeTarget(item);
+		setTreeTarget(OTo<QGraphicsView>(pTarget->parent()));
+		return true;
 	}
-	else
+
+	QWidget* target = widgetAt(pt);
+	if(target)
 	{
 		setTreeTarget(target);
+		return true;
 	}
-	return true;
+
+	QGraphicsItem* pItem = graphicsItemAt(pt);
+	if (pItem)
+	{
+		setTreeTarget(pItem);
+		return true;
+	}
+
+	return false;
 }
 
 bool CQtSpyObject::setTreeTarget(QGraphicsItem* target)
@@ -445,7 +454,8 @@ bool CQtSpyObject::ShowSystemFont()
 
 bool CQtSpyObject::SearchSpyTreeByName()
 {
-	QDialog dlg;
+	QDialog &dlg = *(new QDialog());
+	dlg.setAttribute(Qt::WA_DeleteOnClose);
 	dlg.setWindowTitle(_QStr("查找"));
 	dlg.setLayout(new QVBoxLayout());
 	auto layout = dynamic_cast<QVBoxLayout*>(dlg.layout());
@@ -454,17 +464,18 @@ bool CQtSpyObject::SearchSpyTreeByName()
 	QLineEdit* pEdit;
 	layout1->addWidget(new QLabel("对象名称"));
 	layout1->addWidget(pEdit = new QLineEdit());
-	layout1->addWidget(pBtnYes = new QPushButton("确定"));
+	layout1->addWidget(pBtnYes = new QPushButton("查找全部"));
 	layout1->addWidget(pBtnNext = new QPushButton("下一个"));
 	layout1->addWidget(pBtnPrev = new QPushButton("上一个"));
 	QList<QWidget*> arrTargetItem;
 	int nCurrentIndex = 0;
 	QObject::connect(pBtnYes, &QPushButton::clicked, [&]() {
+		arrTargetItem.clear();
 		QString strName = pEdit->text();
 		if (m_pSpyWidget) {
 			for (auto pWidget : m_mapWidgetNode.keys()) {
-				if (pWidget->objectName().compare(strName) == 0
-					|| strName.compare(pWidget->metaObject()->className()) == 0)
+				if (pWidget->objectName().contains(strName, Qt::CaseInsensitive)
+					|| QString(pWidget->metaObject()->className()).contains(strName, Qt::CaseInsensitive))
 				{
 					arrTargetItem.append(pWidget);
 				}
@@ -486,7 +497,7 @@ bool CQtSpyObject::SearchSpyTreeByName()
 		}
 		});
 	QObject::connect(pBtnPrev, &QPushButton::clicked, [&]() {
-		if (0 > nCurrentIndex)
+		if (nCurrentIndex > 0)
 		{
 			nCurrentIndex--;
 			QWidget* pWidget = *(arrTargetItem.begin() + nCurrentIndex);
@@ -495,7 +506,7 @@ bool CQtSpyObject::SearchSpyTreeByName()
 		}
 	});
 	layout->addLayout(layout1);
-	dlg.exec();
+	dlg.show();
 	return true;
 }
 

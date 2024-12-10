@@ -1,4 +1,9 @@
 #include "publicfunction.h"
+// c++ or lib
+#include <typeinfo>
+#include "boost/hana.hpp"
+
+// qt
 #include <QPoint>
 #include <QWidget>
 #include <QDialog>
@@ -11,6 +16,7 @@
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <QGraphicsProxyWidget>
+#include <QApplication>
 
 QPoint convertGlobalPointToWidget(QPoint ptGlobal, QWidget* pTargetWidget)
 {
@@ -239,4 +245,52 @@ QString styleSheet(QWidget* widget)
 {
 	CQssAnalyze analyze;
 	return analyze.QueryTargetQss(widget);
+}
+
+QWidget* widgetAt(QPoint pt)
+{
+	auto pGraphicsViewItem = graphicsItemAt(pt);
+	if(nullptr == pGraphicsViewItem)
+	{
+		return QApplication::widgetAt(pt);
+	}
+
+	if (To<QGraphicsProxyWidget>(pGraphicsViewItem))
+	{
+		auto pWidget = To<QGraphicsProxyWidget>(pGraphicsViewItem)->widget();
+		if (!pWidget->children().empty())
+		{
+			auto pFind = pWidget->childAt(MapFromGlobal(pWidget, pt));
+			if (nullptr != pFind)
+			{
+				pWidget = pFind;
+			}
+		}
+
+		return pWidget;
+	}
+
+	return nullptr;
+}
+
+QGraphicsItem* graphicsItemAt(QPoint pt)
+{
+	auto pWidget = QApplication::widgetAt(pt);
+	if (nullptr == pWidget)
+	{
+		return nullptr;
+	}
+
+	auto pView = OTo<QGraphicsView>(pWidget->parent());
+	if(nullptr == pView)
+	{
+		return nullptr;
+	}
+
+	if(nullptr == pView->scene())
+	{
+		return nullptr;
+	}
+
+	return pView->scene()->itemAt(pView->mapToScene(pView->mapFromGlobal(pt)), QTransform());
 }

@@ -625,9 +625,9 @@ CEventTraceWnd::CEventTraceWnd(QWidget* parent /*= nullptr*/) : CLogTraceWnd(par
 
 CEventTraceWnd::~CEventTraceWnd()
 {
-	if (m_pGraphicsSpy)
+	for(auto pItem : m_hashGraphicsSpy)
 	{
-		delete m_pGraphicsSpy;
+		delete pItem;
 	}
 }
 
@@ -636,7 +636,13 @@ bool CEventTraceWnd::MonitorWidget(QObject* object)
 	if (object) {
 		if (OTo<QGraphicsItem>(object))
 		{
-			m_pGraphicsSpy = new CGraphicsItemSpy(OTo<QGraphicsItem>(object), this);
+			QGraphicsScene* pScene = OTo<QGraphicsItem>(object)->scene();
+			if(!m_hashGraphicsSpy.contains(pScene))
+			{
+				m_hashGraphicsSpy[pScene] = new CGraphicsItemSpy(pScene, this);
+			}
+	
+			m_hashGraphicsSpy[pScene]->addTargetItem(OTo<QGraphicsItem>(object));
 		}
 		else
 		{
@@ -656,17 +662,26 @@ bool CEventTraceWnd::AddInfo(T* pTarget, QEvent* event)
 
 void CEventTraceWnd::initWidget()
 {
+	QHBoxLayout* pLayout = new QHBoxLayout;
+	QPushButton* btnStop = new  QPushButton("暂停");
 	QCheckBox* filter = new QCheckBox("屏蔽事件");
-	layout()->addWidget(filter);
+	pLayout->addWidget(filter);
+	pLayout->addSpacerItem(new QSpacerItem(1 , 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
+	pLayout->addWidget(btnStop);
+	dynamic_cast<QVBoxLayout*>(layout())->addLayout(pLayout);
 	connect(filter, &QCheckBox::stateChanged, [this](int state) {
 		m_bFilterEvent = state != Qt::Unchecked;
 		});
+	connect(btnStop, &QPushButton::clicked, [=]() {
+		m_bShowEvent = !m_bShowEvent;
+		btnStop->setText(m_bShowEvent ? "暂停" : "启动");
+	});
 }
 
 bool CEventTraceWnd::eventFilter(QObject* pObject, QEvent* event)
 {
 	if ( m_arrMonitorObject.contains(pObject)) {
-		if (AddInfo(pObject, event) && m_bFilterEvent)
+		if (m_bShowEvent && AddInfo(pObject, event) && m_bFilterEvent)
 		{
 			return true;
 		}
@@ -676,7 +691,7 @@ bool CEventTraceWnd::eventFilter(QObject* pObject, QEvent* event)
 
 bool CGraphicsItemSpy::sceneEventFilter(QGraphicsItem* watched, QEvent* event)
 {
-	if (watched == m_pTarget) {
+	if (m_arrMonitorItems.contains(watched)) {
 		m_pWnd->AddInfo(watched, event);
 	}
 	return QGraphicsItem::sceneEventFilter(watched, event);

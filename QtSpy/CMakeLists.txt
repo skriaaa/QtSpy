@@ -30,13 +30,19 @@ buildProject(STATIC fileList)
 
 # link Qt
 linkQtModules(
-	MODULES Core Widgets Test
+	MODULES Core Widgets Test Concurrent
 		)
 
 # 包含工程目录
 INCLUDEDIRECTORY()
 
+# 包含boost目录
+set(boostPath "E:/迅雷下载/Code/boost_1_86_0")
+target_include_directories(${PROJECT_NAME} PUBLIC ${boostPath})
+
+# 添加宏定义
 add_definitions(-DQT_SPY_LIB)
+add_definitions(-D_SILENCE_CXX17_IS_LITERAL_TYPE_DEPRECATION_WARNING) # boost::hana c17编译警告
 
 # 添加路径到系统环境变量
 set($ENV{QT_SPY_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR})
