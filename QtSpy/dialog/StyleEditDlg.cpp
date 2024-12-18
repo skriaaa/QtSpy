@@ -77,7 +77,7 @@ void CStyleEditWnd::showKeys()
 		dlgKeys->setLayout(new QHBoxLayout());
 		{
 			QListView* listSubCtrl = new QListView;
-			listSubCtrl->setEditTriggers(false);
+			listSubCtrl->setEditTriggers(0);
 			dlgKeys->layout()->addWidget(listSubCtrl);
 			QStandardItemModel* model = new QStandardItemModel;
 			listSubCtrl->setModel(model);
@@ -90,7 +90,7 @@ void CStyleEditWnd::showKeys()
 
 		{
 			QListView* listPseudoStates = new QListView;
-			listPseudoStates->setEditTriggers(false);
+			listPseudoStates->setEditTriggers(0);
 			dlgKeys->layout()->addWidget(listPseudoStates);
 			QStandardItemModel* model = new QStandardItemModel;
 			listPseudoStates->setModel(model);

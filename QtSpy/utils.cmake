@@ -60,26 +60,28 @@ endmacro()
 
 # resource file auto create
 macro(QT_AUTORESOURCE_COMPILE)
-	#×Ô¶¯²éÕÒÏîÄ¿ÖĞµÄ .ui ÎÄ¼ş£¬²¢Éú³É¶ÔÓ¦µÄ ui_*.h ÎÄ¼ş£¬Ò²¿ÉÍ¨¹ı uic ÃüÁîÉú³É
+	#è‡ªåŠ¨æŸ¥æ‰¾é¡¹ç›®ä¸­çš„ .ui æ–‡ä»¶ï¼Œå¹¶ç”Ÿæˆå¯¹åº”çš„ ui_*.h æ–‡ä»¶ï¼Œä¹Ÿå¯é€šè¿‡ uic å‘½ä»¤ç”Ÿæˆ
 	set(CMAKE_AUTOUIC ON)
-	#×Ô¶¯¼ì²âĞèÒªÊ¹ÓÃÔª¶ÔÏóÏµÍ³£¨Meta-Object System£©µÄÀà£¬²¢ÔËĞĞ MOC ¹¤¾ß£¨Meta-Object Compiler£©Éú³ÉÏàÓ¦µÄ moc_*.cpp ÎÄ¼ş¡£ÕâÊÇÔÚ Qt ÖĞÊ¹ÓÃĞÅºÅÓë²Û»úÖÆÊ±Éú³É±ØÒªµÄ¸¨Öú´úÂë¡£
+	#è‡ªåŠ¨æ£€æµ‹éœ€è¦ä½¿ç”¨å…ƒå¯¹è±¡ç³»ç»Ÿï¼ˆMeta-Object Systemï¼‰çš„ç±»ï¼Œå¹¶è¿è¡Œ MOC å·¥å…·ï¼ˆMeta-Object Compilerï¼‰ç”Ÿæˆç›¸åº”çš„ moc_*.cpp æ–‡ä»¶ã€‚è¿™æ˜¯åœ¨ Qt ä¸­ä½¿ç”¨ä¿¡å·ä¸æ§½æœºåˆ¶æ—¶ç”Ÿæˆå¿…è¦çš„è¾…åŠ©ä»£ç ã€‚
 	set(CMAKE_AUTOMOC ON)
-	#×Ô¶¯²éÕÒÏîÄ¿ÖĞµÄ×ÊÔ´ÎÄ¼ş£¨.qrc ÎÄ¼ş£©²¢Ê¹ÓÃ rcc ¹¤¾ß£¨Resource Compiler£©À´Éú³É¶ÔÓ¦µÄ qrc_*.cpp ÎÄ¼ş£¬½«×ÊÔ´ÎÄ¼ş±àÒë³É¿ÉÔÚÓ¦ÓÃ³ÌĞòÖĞÊ¹ÓÃµÄ×ÊÔ´ÎÄ¼ş¡£ 
+	#è‡ªåŠ¨æŸ¥æ‰¾é¡¹ç›®ä¸­çš„èµ„æºæ–‡ä»¶ï¼ˆ.qrc æ–‡ä»¶ï¼‰å¹¶ä½¿ç”¨ rcc å·¥å…·ï¼ˆResource Compilerï¼‰æ¥ç”Ÿæˆå¯¹åº”çš„ qrc_*.cpp æ–‡ä»¶ï¼Œå°†èµ„æºæ–‡ä»¶ç¼–è¯‘æˆå¯åœ¨åº”ç”¨ç¨‹åºä¸­ä½¿ç”¨çš„èµ„æºæ–‡ä»¶ã€‚ 
 	set(CMAKE_AUTORCC ON)
 endmacro()
 
 macro(MULTI_PROCESS_COMPILE)
-	add_definitions("/MP")
+    if(PLATFORMTYPE STREQUAL "Windows")
+		add_definitions("/MP")
+	endif()
 endmacro()
 
-# ÉèÖÃ²¢Ê¹ÓÃc++°æ±¾
+# è®¾ç½®å¹¶ä½¿ç”¨c++ç‰ˆæœ¬
 macro(SetCXXVersion17)
 	set(CMAKE_CXX_STANDARD 17)
 	set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endmacro()
 
 
-# Éú³ÉÄ¿Â¼
+# ç”Ÿæˆç›®å½•
 function(createDir dirPath)
     if(NOT EXISTS ${dirPath})
         file(MAKE_DIRECTORY ${dirPath})
@@ -87,18 +89,18 @@ function(createDir dirPath)
 endfunction()
 
 macro(GENERAL_CONFIGURATION)
-	# °üº¬µ±Ç°Ä¿Â¼
+	# åŒ…å«å½“å‰ç›®å½•
 	if(CMAKE_VERSION VERSION_LESS "3.7.0")
 		set(CMAKE_INCLUDE_CURRENT_DIR ON)
 	endif()
 
 	if(PLATFORMTYPE STREQUAL "Windows")
-		# ÔÚ Windows Æ½Ì¨ÉÏµÄÂß¼­
+		# åœ¨ Windows å¹³å°ä¸Šçš„é€»è¾‘
 		set(BUILD_GENERATOR_NAME "Visual Studio 16 2019")
 		set(CMAKE_BUILD_TYPE "Debug")
 		set(CMAKE_INSTALL_CONFIG_NAME "Debug")
 		
-		# Qt°æ±¾
+		# Qtç‰ˆæœ¬
 		if(QTVERSION EQUAL 6)
 			set(QT_VERSION 6.5.3)
 			#set(QT_VERSION 6.5.3 PARENT_SCOPE)
@@ -116,11 +118,17 @@ macro(GENERAL_CONFIGURATION)
 
 		
 	elseif(PLATFORMTYPE STREQUAL "Linux")
-		# ÔÚ Linux Æ½Ì¨ÉÏµÄÂß¼­
+		# åœ¨ Linux å¹³å°ä¸Šçš„é€»è¾‘
 		set(BUILD_GENERATOR_NAME "Unix Makefiles")
 		set(CMAKE_BUILD_TYPE "Debug")
 		set(CMAKE_INSTALL_CONFIG_NAME "Debug")
-		set(QTCMAKE_PATH "/opt/Qt/6.5.0/gcc_64")
+		set(QT_VERSION 5.14.2)
+		set(QTCMAKE_PATH "/opt/Qt${QT_VERSION}/${QT_VERSION}/gcc_64")
+		set(QT_VERSION_MAJOR 5)
+		set(QT5_DIR "/opt/Qt${QT_VERSION}/${QT_VERSION}/gcc_64")
+		set(CMAKE_PREFIX_PATH ${QTCMAKE_PATH})
+		message("Current Qt Path : ${CMAKE_PREFIX_PATH}")
+		message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
 	endif()
 endmacro()
 
@@ -130,7 +138,7 @@ endmacro()
 
 set(appendSysValue "" "")
 
-# ½«Â·¾¶Ìí¼Óµ½ÏµÍ³»·¾³±äÁ¿ÖĞ
+# å°†è·¯å¾„æ·»åŠ åˆ°ç³»ç»Ÿç¯å¢ƒå˜é‡ä¸­
 macro(addPathToSysVar targetPath varName)
 	set(value $ENV{${varName}})
 	if("${value}" STREQUAL "")
@@ -141,7 +149,7 @@ macro(addPathToSysVar targetPath varName)
 	execute_process(COMMAND "setx" "${varName}" "${value}" /m)
 endmacro()
 
-# Ìí¼ÓQtÄ£¿é
+# æ·»åŠ Qtæ¨¡å—
 function(linkQtModules)
 	message("\n*****************linkQtModules begin*****************\n")
 	message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
@@ -158,12 +166,12 @@ function(linkQtModules)
 	foreach(moduleName ${MY_ARGS_MODULES})
 		find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${moduleName})
 		target_link_libraries(${PROJECT_NAME} Qt${QT_VERSION_MAJOR}::${moduleName})
-		target_include_directories(${PROJECT_NAME} PUBLIC ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# ³£¹æÍ·ÎÄ¼ş
+		target_include_directories(${PROJECT_NAME} PUBLIC ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# å¸¸è§„å¤´æ–‡ä»¶
 		message("linkQtModule: Qt${QT_VERSION_MAJOR}::${moduleName}")
 	endforeach()
 
 	if(0)
-	# private Í·ÎÄ¼ş
+	# private å¤´æ–‡ä»¶
 	foreach(curPath ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})
 		set(headerpath "${curPath}/${QT_VERSION}")
 		if(EXISTS ${headerpath})
@@ -187,12 +195,12 @@ function(findSourceFile)
 		"${multiValueArgs}"     # multi_value_keywords
 		${ARGV})
 	
-	# µ±Ç°¹¤³ÌÄ¿Â¼ÏÂµÄcppÎÄ¼ş
+	# å½“å‰å·¥ç¨‹ç›®å½•ä¸‹çš„cppæ–‡ä»¶
 	aux_source_directory("${CMAKE_CURRENT_SOURCE_DIR}" SourceList)
 	list(LENGTH SourceList length) 
 	message ("ProjectDir SourceFileCount : ${length}")
 		
-	# µİ¹é×ÓÄ¿Â¼ÏÂµÄcppÎÄ¼ş
+	# é€’å½’å­ç›®å½•ä¸‹çš„cppæ–‡ä»¶
 	foreach(dir ${MY_ARGS_SUBDIRS})
 		file(GLOB_RECURSE arrSubFile ${CMAKE_CURRENT_SOURCE_DIR}${dir}/*.cpp)
 		list(LENGTH arrSubFile length) 
@@ -212,7 +220,7 @@ function(findSourceFile)
 	message("\n*****************collect files end*****************\n")
 endfunction()
 
-# ¹¹½¨Ä¿±êÏîÄ¿
+# æ„å»ºç›®æ ‡é¡¹ç›®
 function(buildProject type arrFile)
 	set(multiValueArgs SUB_VALUES DEFUALT_VALUES)
 	if(type STREQUAL "STATIC")
@@ -230,22 +238,22 @@ endfunction()
 
 macro(SetGeneralConfiguration)
 
-	# Í¨ÓÃÉèÖÃ£º²éÕÒÂ·¾¶
+	# é€šç”¨è®¾ç½®ï¼šæŸ¥æ‰¾è·¯å¾„
 	GENERAL_CONFIGURATION()
 	
-	# C++°æ±¾
+	# C++ç‰ˆæœ¬
 	SetCXXVersion17()
 	
-	# Qt×ÊÔ´ÎÄ¼ş×Ô¶¯±àÒë
+	# Qtèµ„æºæ–‡ä»¶è‡ªåŠ¨ç¼–è¯‘
 	QT_AUTORESOURCE_COMPILE()
 	
-	# ¶à´¦ÀíÆ÷±àÒë
+	# å¤šå¤„ç†å™¨ç¼–è¯‘
 	MULTI_PROCESS_COMPILE()
 	
-	# °´ÕÕ/utf-8 ±àÂë±àÒë
+	# æŒ‰ç…§/utf-8 ç¼–ç ç¼–è¯‘
 	USE_EXECUTE_CHARSET_UTF8()
 	
-	# ÅäÖÃ¹¤³ÌÊôĞÔ
+	# é…ç½®å·¥ç¨‹å±æ€§
 	ENABLE_QTCREATOR_DEBUG()
 
 endmacro()

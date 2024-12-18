@@ -119,12 +119,6 @@ void CSpyMainWindow::clearSpyTree()
 	m_pTree->clear();
 }
 
-CQtSpyObject& CQtSpyObject::GetInstance()
-{
-	static CQtSpyObject spy;
-	return spy;
-}
-
 bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 {
 	if (watched->objectName().compare(QString("mainwindow"), Qt::CaseInsensitive) == 0) {

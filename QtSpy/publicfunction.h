@@ -1,5 +1,5 @@
 #pragma once
-
+#include <QMetaEnum>
 class QPoint;
 class QWidget;
 class QDialog;

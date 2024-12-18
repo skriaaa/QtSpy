@@ -39,8 +39,6 @@ private:
 
 class CQtSpyObject : public QObject {
 public:
-	static CQtSpyObject& GetInstance();
-public:
 	CQtSpyObject(QWidget* parent = nullptr);
 	bool StartSpy();
 	bool ShutdownSpy();

@@ -1,7 +1,6 @@
 #include "publicfunction.h"
 // c++ or lib
 #include <typeinfo>
-#include "boost/hana.hpp"
 
 // qt
 #include <QPoint>
