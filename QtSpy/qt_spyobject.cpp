@@ -55,6 +55,7 @@ CSpyMainWindow::CSpyMainWindow(QWidget* parent):QDialog(parent)
 	layout()->setContentsMargins(0, 0, 0, 0);
 
 	setWindowFlags(Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint);
+	setAttribute(Qt::WA_DeleteOnClose);
 #ifdef Q_OS_MAC
 	setNativeMenuBar(false);
 #endif
@@ -192,13 +193,13 @@ CQtSpyObject::CQtSpyObject(QWidget* parent):QObject(nullptr)
 {
 	setParent(parent);
 	m_pSpyWidget = nullptr;
-	m_pMainWindow = new CSpyMainWindow(parent);
+	m_pMainWindow = new CSpyMainWindow();
 	initToolWindow();
 }
 
 CQtSpyObject::~CQtSpyObject()
 {
-
+	m_pMainWindow->close();
 }
 
 bool CQtSpyObject::initToolWindow()
