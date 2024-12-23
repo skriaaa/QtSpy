@@ -110,11 +110,20 @@ QRect MapFromGlobal(QWidget* pWidget, QRect rc)
 
 QRect ScreenRect(QWidget* pWidget)
 {
+	if(nullptr == pWidget)
+	{
+		return QRect();
+	}
 	return MapToGlobal(pWidget, pWidget->rect());
 }
 
 QRect ScreenRect(QGraphicsItem* pItem)
 {
+	if (nullptr == pItem)
+	{
+		return QRect();
+	}
+
 	auto geo = pItem->sceneBoundingRect();
 	auto lt = pItem->scene()->views().front()->mapToGlobal(QPoint(geo.left(), geo.top()));
 	return QRect(lt, QSize(geo.width(), geo.height()));

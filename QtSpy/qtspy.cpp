@@ -1,28 +1,13 @@
-#include "qtspy.h"
+﻿#include "qtspy.h"
 #include "qt_spyobject.h"
-#include "qt_spymanager.h"
-QtSpy::QtSpy(void* parent)
+void QtSpy::initSpy()
 {
-	StartSpy(parent);
-}
-QtSpy::~QtSpy()
-{
-	StopSpy();
-}
-static CQtSpyObject* obj = nullptr;
-void QtSpy::StartSpy(void* parent)
-{
-	CQtSpyObject* obj = new CQtSpyObject(static_cast<QWidget*>(parent));
-	CQtSpyManager::GetInstance().addSpy(this, new CQtSpyObject);
-	obj->StartSpy();
+	static CQtSpyObject object;
+	Q_UNUSED(object);
 }
 
-void QtSpy::StopSpy()
+void QtSpy::initSpy(void* parent)
 {
-	//CQtSpyObject* obj = CQtSpyManager::GetInstance().spyObject(this);
-	if (obj)
-	{
-		obj->ShutdownSpy();
-	}
-	//CQtSpyManager::GetInstance().removeSpy(this);
+	CQtSpyObject* pObject = new CQtSpyObject(static_cast<QWidget*>(parent));
+	Q_UNUSED(pObject);
 }

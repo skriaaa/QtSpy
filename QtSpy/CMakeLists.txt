@@ -8,7 +8,10 @@ project(QtSpy LANGUAGES CXX)
 
 # set generalConfiguration
 SetGeneralConfiguration()
-	
+
+# 宏定义
+add_definitions(-DQTSPY_UTILS)
+
 if(QTVERSION EQUAL 6)
 	set(targetPath ${PROJECT_SOURCE_DIR}/../bin)
 	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${targetPath})

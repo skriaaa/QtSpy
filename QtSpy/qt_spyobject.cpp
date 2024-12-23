@@ -47,15 +47,17 @@
 #include "publicfunction.h"
 #include "qt_spygraphics.h"
 #include "dialog/ObjectTree.h"
-
+#include "qtspy.h"
+const char* MAIN_WINDOW = "QtSpy_MainWindow";
 CSpyMainWindow::CSpyMainWindow(QWidget* parent):QDialog(parent)
 {
 	setLayout(new QVBoxLayout());
-	if (layout()) {
-		layout()->setContentsMargins(0, 0, 0, 0);
-	}
-	//setWindowFlag(Qt::WindowStaysOnTopHint);
-	setWindowFlags(windowFlags() & ~Qt::WindowCloseButtonHint);
+	layout()->setContentsMargins(0, 0, 0, 0);
+
+	setWindowFlags(Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint);
+#ifdef Q_OS_MAC
+	setNativeMenuBar(false);
+#endif
 }
 
 CQtSpyObject* CSpyMainWindow::spyObject()
@@ -67,12 +69,7 @@ void CSpyMainWindow::initWindow(CQtSpyObject* object)
 {
 	m_pSpyObject = object;
 	setWindowTitle(_QStr("qt spy"));
-	setObjectName(_QStr("mainwindow"));
-	setWindowFlag(Qt::WindowTitleHint);
-	setWindowFlag(Qt::WindowSystemMenuHint);
-	setWindowFlag(Qt::WindowMinimizeButtonHint);
-	setWindowFlag(Qt::WindowMaximizeButtonHint);
-
+	setObjectName(MAIN_WINDOW);
 	initSpyTree();
 
 	setGeometry(
@@ -121,90 +118,87 @@ void CSpyMainWindow::clearSpyTree()
 
 bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 {
-	if (watched->objectName().compare(QString("mainwindow"), Qt::CaseInsensitive) == 0) {
-		if (m_eCursorAction == EScreenMouseAction::SearchWidget) {
-			if (event->type() == QEvent::MouseButtonRelease) {
-				CSpyMainWindow* mainWindow = dynamic_cast<CSpyMainWindow*>(watched);
-				QMouseEvent* typeEvent = dynamic_cast<QMouseEvent*>(event);
-				QPoint ptMouse = typeEvent->globalPos();
-				qDebug() << "query widget at point:" << ptMouse;
-				QWidget* pTarget = widgetAt(ptMouse);
-				mainWindow->removeEventFilter(this);
-				mainWindow->releaseMouse();
-				QApplication::restoreOverrideCursor();
-				m_eCursorAction = EScreenMouseAction::None;
-				if (pTarget) {
-					qDebug() << pTarget;
-					if (m_pSpyWidget) {
-						if (m_mapWidgetNode.contains(pTarget))
-						{
-							m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pTarget]);
-							m_mapWidgetNode[pTarget]->setExpanded(true);
-						}
+	if(watched->objectName().compare(QString(MAIN_WINDOW), Qt::CaseInsensitive) != 0)
+	{
+		return QObject::eventFilter(watched, event);
+	}
+
+	switch(event->type())
+	{
+		case QEvent::MouseMove:
+		{
+			if(EScreenMouseAction::SearchWidget == m_eCursorAction ||
+				EScreenMouseAction::SpyTarget == m_eCursorAction)
+			{
+				CSpyIndicatorWnd::showWnd(ScreenRect(widgetAt((dynamic_cast<QMouseEvent*>(event))->globalPos())));
+				return true;
+			}
+			break;
+		}
+		case QEvent::MouseButtonRelease:
+		{
+			EScreenMouseAction eAction = m_eCursorAction;
+			m_eCursorAction = EScreenMouseAction::None;
+			CSpyMainWindow* mainWindow = dynamic_cast<CSpyMainWindow*>(watched);
+			mainWindow->removeEventFilter(this);
+			mainWindow->releaseMouse();
+			QApplication::restoreOverrideCursor();
+			CSpyIndicatorWnd::instance().hide();
+			QMouseEvent* pEvent = dynamic_cast<QMouseEvent*>(event);
+			if(pEvent->button() == Qt::RightButton)
+			{
+				break;
+			}
+
+			QPoint ptMouse = pEvent->globalPos();
+			switch (eAction)
+			{
+				case EScreenMouseAction::SearchWidget:
+				{
+					QWidget* pTarget = widgetAt(ptMouse);
+					if (m_mapWidgetNode.contains(pTarget))
+					{
+						m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pTarget]);
+						m_mapWidgetNode[pTarget]->setExpanded(true);
 					}
+					break;
 				}
-				return true;
-			}
-		}
-		if (m_eCursorAction == EScreenMouseAction::SpyTarget) {
-			if (event->type() == QEvent::MouseButtonRelease) {
-				CSpyMainWindow* mainWindow = dynamic_cast<CSpyMainWindow*>(watched);
-				QMouseEvent* typeEvent = dynamic_cast<QMouseEvent*>(event);
-				QPoint ptMouse = typeEvent->globalPos();
-				qDebug() << "query widget at point:" << ptMouse;
-				mainWindow->removeEventFilter(this);
-				mainWindow->releaseMouse();
-				QApplication::restoreOverrideCursor();
-				m_eCursorAction = EScreenMouseAction::None;
-				setTreeTarget(ptMouse);
-				return true;
-			}
-		}
-		if (m_eCursorAction == EScreenMouseAction::CheckColor) {
-			if (event->type() == QEvent::MouseButtonRelease) {
-				CSpyMainWindow* mainWindow = dynamic_cast<CSpyMainWindow*>(watched);
-				QMouseEvent* typeEvent = dynamic_cast<QMouseEvent*>(event);
-				QPoint ptMouse = typeEvent->globalPos();
-				QScreen* screen = QGuiApplication::primaryScreen();
-				QColor pixelColor = screen->grabWindow(0, ptMouse.x(), ptMouse.y(), 1, 1).toImage().pixel(0, 0);
-				mainWindow->removeEventFilter(this);
-				mainWindow->releaseMouse();
-				QApplication::restoreOverrideCursor();
-				m_eCursorAction = EScreenMouseAction::None;
-				if (pixelColor.isValid()) {
+				case EScreenMouseAction::SpyTarget:
+				{
+					setTreeTarget(ptMouse);
+					break;
+				}
+				case EScreenMouseAction::CheckColor:
+				{
+					QColor pixelColor = QGuiApplication::primaryScreen()->grabWindow(0, ptMouse.x(), ptMouse.y(), 1, 1).toImage().pixel(0, 0);
 					QColorDialog dialog;
 					dialog.setCurrentColor(pixelColor);
 					dialog.setOption(QColorDialog::ShowAlphaChannel);
 					dialog.exec();
+					break;
 				}
-				return true;
+				default:
+					break;
 			}
 		}
+	default:
+		break;
 	}
+
 	return QObject::eventFilter(watched, event);
 }
 
-CQtSpyObject::CQtSpyObject(QWidget* parent)
+CQtSpyObject::CQtSpyObject(QWidget* parent):QObject(nullptr)
 {
+	setParent(parent);
 	m_pSpyWidget = nullptr;
 	m_pMainWindow = new CSpyMainWindow(parent);
-}
-
-bool CQtSpyObject::StartSpy()
-{
 	initToolWindow();
-	return true;
 }
 
-
-bool CQtSpyObject::ShutdownSpy()
+CQtSpyObject::~CQtSpyObject()
 {
-	if (m_pMainWindow) {
-		m_pMainWindow->close();
-		delete m_pMainWindow;
-		m_pMainWindow = nullptr;
-	}
-	return true;
+
 }
 
 bool CQtSpyObject::initToolWindow()
@@ -528,6 +522,7 @@ bool CQtSpyObject::SpyTargetTree()
 	m_eCursorAction = EScreenMouseAction::SpyTarget;
 	m_pMainWindow->grabMouse();
 	m_pMainWindow->installEventFilter(this);
+	m_pMainWindow->setMouseTracking(true);
 	QApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
 	return true;
 }

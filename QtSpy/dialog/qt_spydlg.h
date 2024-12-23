@@ -34,8 +34,12 @@ public:
 class CSpyIndicatorWnd : public CXDialog {
 public:
 	CSpyIndicatorWnd(QWidget* parent = nullptr);
+	static CSpyIndicatorWnd& instance();
+	static void showWnd(QRect rcArea, bool bHold = true);
+	void show(bool bHold) ;
 private:
 	int m_nSpanPeriod;
+	QTimer m_Timer;
 };
 
 
@@ -127,7 +131,6 @@ protected:
 class CCursorLocateWnd : public CXDialog {
 public:
 	CCursorLocateWnd();
-public:
 
 protected:
 	void paintEvent(QPaintEvent* event) override;
@@ -190,21 +193,25 @@ class CEventTraceWnd : public CLogTraceWnd{
 public:
 	CEventTraceWnd(QWidget* parent = nullptr);
 	~CEventTraceWnd();
+
 public:
 	bool MonitorWidget(QObject* pWidget);
+	void setRunning(bool bRun);
 	template <typename T>
 	bool AddInfo(T* pTarget, QEvent* event);
-public:
-	QSet<QObject*> m_arrMonitorObject;
-	bool m_bShowEvent = true;
+
 protected:
 	void initWidget();
 	bool eventFilter(QObject* pObject, QEvent* event) override;
-private:
 	template <typename T>
 	QString EventInfo(T* pTarget, QEvent* event);
+
+protected:
+
 	QHash<QGraphicsScene*, CGraphicsItemSpy*> m_hashGraphicsSpy;
+	QSet<QObject*> m_arrMonitorObject;
 	bool m_bFilterEvent = false;
+	bool m_bRunning = true;
 };
 
 //class CResourceManageWnd : public CXDialog {

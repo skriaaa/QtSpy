@@ -11,6 +11,7 @@ int ProcessInfo::queryProcessCurrentMemory()
 	GetProcessMemoryInfo(GetCurrentProcess(), &memInfo, sizeof(memInfo));
 	return memInfo.WorkingSetSize/1024/1024;
 #endif
+	return 0;
 }
 
 int ProcessInfo::queryProcessCpu()

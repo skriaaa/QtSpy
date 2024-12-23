@@ -40,8 +40,7 @@ private:
 class CQtSpyObject : public QObject {
 public:
 	CQtSpyObject(QWidget* parent = nullptr);
-	bool StartSpy();
-	bool ShutdownSpy();
+	~CQtSpyObject();
 public:
 	virtual bool eventFilter(QObject* watched, QEvent* event) override;
 public:

@@ -1,12 +1,7 @@
-#pragma once
+﻿#pragma once
 
-//#include "qtspy_global.h"
-class /*QTSPY_EXPORT*/ QtSpy
+namespace QtSpy
 {
-public:
-    QtSpy(void* parent = nullptr);
-    ~QtSpy();
-private:
-    void StartSpy(void* parent = nullptr);
-    void StopSpy();
+    void initSpy();
+    void initSpy(void* parent);
 };

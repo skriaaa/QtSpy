@@ -41,24 +41,65 @@
 #include "publicfunction.h"
 #include "proxyStyle/ProxyStyle.h"
 #include "StyleEditDlg.h"
+#include "utils/LogRecorder.h"
 
-CSpyIndicatorWnd::CSpyIndicatorWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent)
+CSpyIndicatorWnd::CSpyIndicatorWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent),
+m_Timer(QTimer(this))
 {
 	setAttribute(Qt::WA_DeleteOnClose);
+	setAttribute(Qt::WA_TransparentForMouseEvents);
 	setWindowFlags(windowFlags() | Qt::Tool | Qt::FramelessWindowHint | Qt::WindowMinMaxButtonsHint);
-	setStyleSheet("background-color: rgba(255, 0, 0, 255);");
-	setWindowOpacity(0.3);
-	QTimer* timer = new QTimer(this);
-	m_nSpanPeriod = 30;
-	QObject::connect(timer, &QTimer::timeout, [&]() {
-		if (this->m_nSpanPeriod == 0) {
-			this->close();
+	setStyleSheet("border: 1px solid rgba(0, 255, 225, 255); background:rgba(255, 255, 255, 255);");
+
+	m_Timer.setInterval(100);
+	QObject::connect(&m_Timer, &QTimer::timeout, [&]() {
+		if (m_nSpanPeriod == 0) {
+			m_Timer.stop();
+			hide();
 		}
-		this->setWindowOpacity((float)m_nSpanPeriod / 30);
-		this->repaint();
-		m_nSpanPeriod--;
-		});
-	timer->start(100);
+		else
+		{
+			setWindowOpacity((float)m_nSpanPeriod / 30);
+			repaint();
+			m_nSpanPeriod--;
+		}
+	});
+}
+
+CSpyIndicatorWnd& CSpyIndicatorWnd::instance()
+{
+	static CSpyIndicatorWnd wnd;
+	return wnd;
+}
+
+void CSpyIndicatorWnd::showWnd(QRect rcArea, bool bHold)
+{
+	if (rcArea.isEmpty())
+	{
+		instance().hide();
+		return;
+	}
+
+	instance().setGeometry(rcArea);
+	instance().show(bHold);
+}
+
+void CSpyIndicatorWnd::show(bool bHold)
+{
+	setWindowOpacity(0.4);
+	if(!bHold)
+	{
+		m_nSpanPeriod = 30;
+		m_Timer.stop();
+		m_Timer.start();
+	}
+	else
+	{
+		m_Timer.stop();
+	}
+
+	QDialog::show();
+	raise();
 }
 
 CMoveOrScaleWidgetWnd::CMoveOrScaleWidgetWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent)
@@ -478,6 +519,7 @@ void CStatusInfoWnd::keyReleaseEvent(QKeyEvent* event)
 
 CCursorLocateWnd::CCursorLocateWnd() :CXDialog(nullptr)
 {
+	setMouseTracking(true);
 	setStyleSheet(QString("background-color:#00ff00;"));
 	setWindowOpacity(0.3);
 	setWindowFlag(Qt::FramelessWindowHint);
@@ -515,41 +557,38 @@ CLogTraceWnd::CLogTraceWnd(QWidget* parent /*= nullptr*/) :CXDialog(parent)
 
 bool CLogTraceWnd::AddInfo(QString strInfo)
 {
-	strInfo = QString("%1 | %2 | %3").arg(m_nCount++, 4, 10, QLatin1Char('0')).arg(QTime::currentTime().toString("hh:mm:ss::zzz")).arg(strInfo);
-	if(strInfo.contains("event [MouseButtonPress] —— QWidget( | qt_scrollarea_viewport)"))
+	bool bHas = m_arrStrHas.isEmpty();
+	for (auto strHas : m_arrStrHas)
 	{
-		Q_ASSERT(1);
-	}
-	do
-	{
-		bool bHas = m_arrStrHas.isEmpty();
-		for(auto strHas : m_arrStrHas)
+		if (strInfo.contains(strHas, Qt::CaseInsensitive)) 
 		{
-			if (strInfo.contains(strHas, Qt::CaseInsensitive)) {
-				bHas = true;
-				break;
-			}
+			bHas = true;
+			break;
 		}
+	}
 
-		if(!bHas)
+	if (!bHas)
+	{
+		return false;
+	}
+
+	for (auto strNo : m_arrStrNo)
+	{
+		if (strInfo.contains(strNo, Qt::CaseInsensitive)) 
 		{
 			return false;
 		}
+	}
 
-		for(auto strNo : m_arrStrNo)
-		{
-			if (strInfo.contains(strNo, Qt::CaseInsensitive)) {
-				return false;
-			}
-		}
+	strInfo = QString("%1 | %2 | %3").arg(m_nCount++, 4, 10, QLatin1Char('0')).arg(QTime::currentTime().toString("hh:mm:ss::zzz")).arg(strInfo);
+	CLogRecorder::instance().addLog(strInfo);
+	m_listModel.insertRow(m_listModel.rowCount());
+	m_listModel.setData(m_listModel.index(m_listModel.rowCount() - 1), strInfo);
+	if (m_bTrace)
+	{
+		m_listView->scrollTo(m_listModel.index(m_listModel.rowCount() - 1, 0));
+	}
 
-		m_listModel.insertRow(m_listModel.rowCount());
-		m_listModel.setData(m_listModel.index(m_listModel.rowCount() - 1), strInfo);
-		if (m_bTrace)
-		{
-			m_listView->scrollTo(m_listModel.index(m_listModel.rowCount() - 1, 0));
-		}
-	} while (0);
 	return true;
 }
 
@@ -654,6 +693,11 @@ bool CEventTraceWnd::MonitorWidget(QObject* object)
 	return false;
 }
 
+void CEventTraceWnd::setRunning(bool bRun)
+{
+	m_bRunning = bRun;
+}
+
 template <typename T>
 bool CEventTraceWnd::AddInfo(T* pTarget, QEvent* event)
 {
@@ -663,7 +707,7 @@ bool CEventTraceWnd::AddInfo(T* pTarget, QEvent* event)
 void CEventTraceWnd::initWidget()
 {
 	QHBoxLayout* pLayout = new QHBoxLayout;
-	QPushButton* btnStop = new  QPushButton("暂停");
+	QPushButton* btnStop = new  QPushButton(m_bRunning ? "runing..." : "stoped");
 	QCheckBox* filter = new QCheckBox("屏蔽事件");
 	pLayout->addWidget(filter);
 	pLayout->addSpacerItem(new QSpacerItem(1 , 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
@@ -673,15 +717,15 @@ void CEventTraceWnd::initWidget()
 		m_bFilterEvent = state != Qt::Unchecked;
 		});
 	connect(btnStop, &QPushButton::clicked, [=]() {
-		m_bShowEvent = !m_bShowEvent;
-		btnStop->setText(m_bShowEvent ? "暂停" : "启动");
+		m_bRunning = !m_bRunning;
+		btnStop->setText(m_bRunning ? "runing..." : "stoped");
 	});
 }
 
 bool CEventTraceWnd::eventFilter(QObject* pObject, QEvent* event)
 {
 	if ( m_arrMonitorObject.contains(pObject)) {
-		if (m_bShowEvent && AddInfo(pObject, event) && m_bFilterEvent)
+		if (m_bRunning && AddInfo(pObject, event) && m_bFilterEvent)
 		{
 			return true;
 		}
@@ -700,7 +744,7 @@ bool CGraphicsItemSpy::sceneEventFilter(QGraphicsItem* watched, QEvent* event)
 template<typename T>
 QString CEventTraceWnd::EventInfo(T* pTarget, QEvent* event)
 {
-	QString strTarget = " —— ";
+	QString strTarget = " --- ";
 	if (dynamic_cast<QObject*>(pTarget))
 	{
 		strTarget += ObjectString(dynamic_cast<QObject*>(pTarget));

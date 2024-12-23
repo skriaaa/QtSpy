@@ -6,6 +6,7 @@
 #include <QQueue>
 #include <QThread>
 #include <QMutex>
+#include <QTextStream>
 #include <QCoreApplication>
 #include "publicfunction.h"
 
@@ -34,13 +35,14 @@ public:
 		do
 		{
 			QString strLog = popLog();
+			QTextStream stream(&file);
 			do
 			{
 				if (strLog.isEmpty())
 				{
 					break;
 				}
-				file.write(strLog.toLocal8Bit());
+				stream << strLog.toLocal8Bit();
 				strLog = popLog();
 			} while (true);
 
