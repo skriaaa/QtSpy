@@ -9,7 +9,7 @@
 
 1、在Qt工程.pro中添加
 ```c++
-#  QT_SPY_INCLUE是CMakeLists.txt所在路径
+#  QT_SPY_INCLUE是CMakeLists.txt所在文件夹
 QT += testlib
 INCLUDEPATH += $(QT_SPY_INCLUDE) 
 LIBS += -L$(QT_SPY_INCLUDE) -lQtSpy
