@@ -66,8 +66,8 @@ public:
 		{
 			return "";
 		}
-		QString strData = m_queueLog.back();
-		m_queueLog.pop_back();
+		QString strData = m_queueLog.front();
+		m_queueLog.pop_front();
 		return strData;
 	}
 private:

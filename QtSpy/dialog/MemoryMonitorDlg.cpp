@@ -25,18 +25,18 @@ void CMemoryMonitorDlg::initWidgets()
 		m_bTrace = false;
 		});
 
-	QPushButton* btn = new QPushButton(u8"开始监控");
+	QPushButton* btn = new QPushButton("开始监控");
 	connect(btn, &QPushButton::clicked, [=]() {
 		if (m_nTimerID == -1)
 		{
 			m_nTimerID = startTimer(100);
-			btn->setText(u8"停止监控");
+			btn->setText("停止监控");
 		}
 		else
 		{
 			killTimer(m_nTimerID);
 			m_nTimerID = -1;
-			btn->setText(u8"开始监控");
+			btn->setText("开始监控");
 		}
 		});
 	QPushButton* btnTrace = new QPushButton(u8"Trace");
@@ -59,7 +59,7 @@ void CMemoryMonitorDlg::timerEvent(QTimerEvent* event)
 		QStringListModel* model = static_cast<QStringListModel*>(m_listView->model());
 		model->insertRow(model->rowCount());
 
-		QString strRowString = QString("%1 | 当前内存占用 %2 (Byte)| 变化值 %3 (Byte)").arg(QTime().currentTime().toString("hh:mm:ss::zzz")).arg(m_nMemoryCount).arg(nDiffer);
+		QString strRowString = QString("%1 | 当前内存占用 %2 (MByte)| 变化值 %3 (MByte)").arg(QTime().currentTime().toString("hh:mm:ss::zzz")).arg(m_nMemoryCount).arg(nDiffer);
 		model->setData(model->index(model->rowCount() - 1), strRowString);
 		if (m_bTrace)
 		{
