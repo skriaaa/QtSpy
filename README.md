@@ -1,12 +1,16 @@
 编译：
+
 1、在utils.cmake里配置Qt版本和路径
 2、build目录，执行   windows：build.bat/built_64.bat； linux：linux_build.sh
 
+
+
 引入(静态库)：
+
 1、在Qt工程.pro中添加
 ```c++
-QT += testlib
 #  QT_SPY_INCLUE是CMakeLists.txt所在路径
+QT += testlib
 INCLUDEPATH += $(QT_SPY_INCLUDE) 
 LIBS += -L$(QT_SPY_INCLUDE) -lQtSpy
 ```
