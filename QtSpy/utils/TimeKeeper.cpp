@@ -41,14 +41,7 @@ QString CTimeKeeper::queryTimePointString()
 	listRet.append(queryTimePointString(*it));
 	while (it != m_listTimePoint.end()-1)
 	{
-		if (it == m_listTimePoint.begin())
-		{
-			listRet.append(queryTimePointString(*it, *(it + 1)));
-		}
-		else 
-		{
-			listRet.append(queryTimePointString(*it, *(it + 1)));
-		}
+		listRet.append(queryTimePointString(*it, *(it + 1)));
 		it++;
 	}
 	return "[TimeKeeper] " + listRet.join(" ");
