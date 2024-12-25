@@ -193,6 +193,11 @@ QString ObjectString(QObject* object)
 	{
 		strItemInfo += "[hide]";
 	}
+	if (OTo<QWidget>(object) && !OTo<QWidget>(object)->isEnabled()
+	|| OTo<QGraphicsItem>(object) && !OTo<QGraphicsItem>(object)->isEnabled())
+	{
+		strItemInfo += "[disabled]";
+	}
 
 	return strItemInfo;
 }

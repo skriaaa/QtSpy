@@ -49,12 +49,12 @@
 #include "dialog/ObjectTree.h"
 #include "qtspy.h"
 const char* MAIN_WINDOW = "QtSpy_MainWindow";
-CSpyMainWindow::CSpyMainWindow(QWidget* parent):QDialog(parent)
+CSpyMainWindow::CSpyMainWindow(QWidget* parent):CXDialog(parent)
 {
 	setLayout(new QVBoxLayout());
 	layout()->setContentsMargins(0, 0, 0, 0);
+	setWindowFlags(windowFlags() | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint);
 
-	setWindowFlags(Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint);
 	setAttribute(Qt::WA_DeleteOnClose);
 #ifdef Q_OS_MAC
 	setNativeMenuBar(false);
@@ -98,6 +98,21 @@ void CSpyMainWindow::keyPressEvent(QKeyEvent* event)
 	QDialog::keyPressEvent(event);
 }
 
+bool CSpyMainWindow::eventFilter(QObject* object, QEvent* event)
+{
+	if(object == parent())
+	{
+		if(event->type() == QEvent::Hide)
+		{
+			hide();
+		}
+		if(event->type() == QEvent::Show)
+		{
+			show();
+		}
+	}
+	return CXDialog::eventFilter(object, event);
+}
 
 CWidgetSpyTree* CSpyMainWindow::tree()
 {
@@ -192,19 +207,25 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 CQtSpyObject::CQtSpyObject(QWidget* parent):QObject(nullptr)
 {
 	setParent(parent);
+	setObjectName("CQtSpyObject");
 	m_pSpyWidget = nullptr;
-	m_pMainWindow = new CSpyMainWindow();
+	m_pMainWindow = new CSpyMainWindow(parent);
+	if(nullptr != parent)
+	{
+		parent->installEventFilter(m_pMainWindow);
+	}
 	initToolWindow();
 }
 
 CQtSpyObject::~CQtSpyObject()
 {
-	m_pMainWindow->close();
+	
 }
-
+extern bool s_bAutoCreate;
 bool CQtSpyObject::initToolWindow()
 {
 	QMenuBar* menuBar = new QMenuBar();
+	menuBar->setStyleSheet("QMenuBar{ background: white; color: rgba(15,15,15,255); }");
 	QAction* actionSpyTarget = new QAction(_QStr("监控"));
 	QObject::connect(actionSpyTarget, &QAction::triggered, [&]() {
 		SpyTargetTree();
@@ -277,6 +298,10 @@ bool CQtSpyObject::initToolWindow()
 		});
 
 	QMenu* menuSetting = new QMenu(_QStr("设置"));
+	QAction* menuAutoCreate = menuSetting->addAction("为模态框创建独立的Spy窗口");
+	menuAutoCreate->setCheckable(true);
+	menuAutoCreate->setChecked(s_bAutoCreate);
+	connect(menuAutoCreate, &QAction::triggered, [&](bool checked) { s_bAutoCreate = checked; });
 	QMenu* menuUIStyle = menuSetting->addMenu("界面风格");
 	for (QString strStyleName : QStyleFactory::keys())
 	{
@@ -375,7 +400,7 @@ bool CQtSpyObject::setTreeTarget(QWidget* target)
 
 bool CQtSpyObject::ShowSystemInfo()
 {
-	CListInfoWnd* pInfo = new CListInfoWnd();
+	CListInfoWnd* pInfo = new CListInfoWnd(m_pMainWindow);
 	QString strSystemDPI = "unknow";
 	QScreen* screen = QGuiApplication::primaryScreen();
 	if (screen) {
@@ -421,14 +446,14 @@ bool CQtSpyObject::ShowSystemInfo()
 
 bool CQtSpyObject::ShowStatusInfo()
 {
-	CStatusInfoWnd* pInfo = new CStatusInfoWnd();
+	CStatusInfoWnd* pInfo = new CStatusInfoWnd(m_pMainWindow);
 	pInfo->ShowOnTop();
 	return true;
 }
 
 bool CQtSpyObject::showMemoryMonitor()
 {
-	CMemoryMonitorDlg* pMemMonitorDlg = new CMemoryMonitorDlg();
+	CMemoryMonitorDlg* pMemMonitorDlg = new CMemoryMonitorDlg(m_pMainWindow);
 	pMemMonitorDlg->ShowOnTop();
 	return true;
 }
@@ -443,7 +468,7 @@ bool CQtSpyObject::ShowSystemFont()
 
 bool CQtSpyObject::SearchSpyTreeByName()
 {
-	QDialog &dlg = *(new QDialog());
+	QDialog &dlg = *(new QDialog(m_pMainWindow));
 	dlg.setAttribute(Qt::WA_DeleteOnClose);
 	dlg.setWindowTitle(_QStr("查找"));
 	dlg.setLayout(new QVBoxLayout());

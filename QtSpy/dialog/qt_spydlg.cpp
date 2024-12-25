@@ -262,7 +262,6 @@ void CListInfoWnd::ClearAll()
 void CListInfoWnd::initWidgets()
 {
 	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowFlags(windowFlags() | Qt::Popup | Qt::WindowCloseButtonHint | Qt::WindowMinMaxButtonsHint | Qt::CustomizeWindowHint);
 	resize(320, 380);
 	setLayout(new QVBoxLayout());
 
@@ -493,7 +492,7 @@ CLogTraceWnd* CSignalSpyWnd::traceWnd()
 	return m_pTraceWnd;
 }
 
-CStatusInfoWnd::CStatusInfoWnd() : CListInfoWnd()
+CStatusInfoWnd::CStatusInfoWnd(QWidget* parent) : CListInfoWnd(parent)
 {
 	setWindowTitle(_QStr("状态信息"));
 	UpdateStatusInfo();
@@ -517,7 +516,7 @@ void CStatusInfoWnd::keyReleaseEvent(QKeyEvent* event)
 	CListInfoWnd::keyReleaseEvent(event);
 }
 
-CCursorLocateWnd::CCursorLocateWnd() :CXDialog(nullptr)
+CCursorLocateWnd::CCursorLocateWnd(QWidget* parent) :CXDialog(parent)
 {
 	setMouseTracking(true);
 	setStyleSheet(QString("background-color:#00ff00;"));

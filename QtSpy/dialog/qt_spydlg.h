@@ -6,7 +6,6 @@
 #include <QTimer>
 #include <QLineEdit>
 #include <QStringListModel>
-#include <qt_spyobject.h>
 #include <QSignalSpy>
 #include <QGraphicsScene>
 #include <QGraphicsItem>
@@ -20,10 +19,10 @@ public:
 	}
 	void ShowOnTop(bool modal = false) {
 		if (modal) {
-
+			exec();
 		}
 		else {
-			setWindowFlags(Qt::WindowStaysOnTopHint);
+			setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint);
 			raise();
 			show();
 		}
@@ -121,7 +120,7 @@ private:
 
 class CStatusInfoWnd : public CListInfoWnd {
 public:
-	CStatusInfoWnd();
+	CStatusInfoWnd(QWidget* parent = nullptr);
 private:
 	void UpdateStatusInfo();
 protected:
@@ -130,7 +129,7 @@ protected:
 
 class CCursorLocateWnd : public CXDialog {
 public:
-	CCursorLocateWnd();
+	CCursorLocateWnd(QWidget* parent = nullptr);
 
 protected:
 	void paintEvent(QPaintEvent* event) override;

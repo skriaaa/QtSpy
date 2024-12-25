@@ -7,6 +7,7 @@
 #include <QMainWindow>
 #include <QTimer>
 #include <QTextEdit>
+#include "dialog/qt_spydlg.h"
 class CWidgetSpyTree;
 class QGraphicsItem;
 enum class EScreenMouseAction {
@@ -20,7 +21,7 @@ enum class ETreeType {
 	viewTree = 1,
 };
 class CQtSpyObject;
-class CSpyMainWindow : public QDialog {
+class CSpyMainWindow : public CXDialog {
 public:
 	CSpyMainWindow(QWidget* parent = nullptr);
 
@@ -28,7 +29,8 @@ public:
 	void initWindow(CQtSpyObject* object);
 	void setMenuBar(QMenuBar* menuBar);
 	CWidgetSpyTree* tree();
-	virtual void keyPressEvent(QKeyEvent* event);
+	virtual void keyPressEvent(QKeyEvent* event) override;
+	virtual bool eventFilter(QObject* object, QEvent* event) override;
 protected:
 	void initSpyTree();
 	void clearSpyTree();

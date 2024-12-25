@@ -190,26 +190,15 @@ void CWidgetSpyTree::ChangeWidgetVisible(QPoint ptGlobal)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget;
-		QGraphicsItem* pTargetItem;
-		if (pTargetWidget = widgetData(clickedItem)) {
-			if (pTargetWidget->isVisible()) {
-				pTargetWidget->setVisible(false);
-			}
-			else {
-				pTargetWidget->setVisible(true);
-			}
-		}
-		else if (pTargetItem = graphicsData(clickedItem))
+		if (QWidget* pTargetWidget = widgetData(clickedItem))
 		{
-			if (pTargetItem->isVisible())
-			{
-				pTargetItem->hide();
-			}
-			else
-			{
-				pTargetItem->setVisible(true);
-			}
+			pTargetWidget->setVisible(!pTargetWidget->isVisible());
+			clickedItem->setText(0, ObjectString(pTargetWidget));
+		}
+		else if (QGraphicsItem* pTargetItem = graphicsData(clickedItem))
+		{
+			pTargetItem->setVisible(!pTargetItem->isVisible());
+			clickedItem->setText(0, ObjectString(To<QObject>(pTargetItem)));
 		}
 	}
 }
@@ -218,26 +207,15 @@ void CWidgetSpyTree::ChangeWidgetEnable(QPoint ptGlobal)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget;
-		QGraphicsItem* pTargetItem;
-		if (pTargetWidget = widgetData(clickedItem)) {
-			if (pTargetWidget->isEnabled()) {
-				pTargetWidget->setEnabled(false);
-			}
-			else {
-				pTargetWidget->setEnabled(true);
-			}
-		}
-		else if (pTargetItem = graphicsData(clickedItem))
+		if (QWidget* pTargetWidget = widgetData(clickedItem))
 		{
-			if (pTargetItem->isEnabled())
-			{
-				pTargetItem->setEnabled(false);
-			}
-			else
-			{
-				pTargetItem->setEnabled(true);
-			}
+			pTargetWidget->setEnabled(!pTargetWidget->isEnabled());
+			clickedItem->setText(0, ObjectString(pTargetWidget));
+		}
+		else if (QGraphicsItem* pTargetItem = graphicsData(clickedItem))
+		{
+			pTargetItem->setEnabled(!pTargetItem->isEnabled());
+			clickedItem->setText(0, ObjectString(To<QObject>(pTargetItem)));
 		}
 	}
 }
@@ -247,14 +225,14 @@ void CWidgetSpyTree::ChangeWidgetPosOrSize(QPoint ptGlobal)
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
 		if (QWidget* pTargetWidget = widgetData(clickedItem)) {
-			CMoveOrScaleWidgetWnd* window = new CMoveOrScaleWidgetWnd();
-			window->ControlTarget(pTargetWidget);
-			window->ShowOnTop();
+			CMoveOrScaleWidgetWnd* pWindow = new CMoveOrScaleWidgetWnd(window());
+			pWindow->ControlTarget(pTargetWidget);
+			pWindow->ShowOnTop();
 		}
 		else if (QGraphicsItem* pTargetItem = graphicsData(clickedItem)) {
-			CMoveOrScaleWidgetWnd* window = new CMoveOrScaleWidgetWnd();
-			window->GraphicsTarget(pTargetItem);
-			window->ShowOnTop();
+			CMoveOrScaleWidgetWnd* pWindow = new CMoveOrScaleWidgetWnd();
+			pWindow->GraphicsTarget(pTargetItem);
+			pWindow->ShowOnTop();
 		}
 	}
 }
@@ -263,25 +241,21 @@ void CWidgetSpyTree::IndicatorWidget(QPoint ptGlobal)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget = widgetData(clickedItem);
-		QGraphicsItem* pTargetItem = graphicsData(clickedItem);
-		QLayout* pLayout = itemData<QLayout>(clickedItem);
-		QSpacerItem* pSpacerItem = itemData<QSpacerItem>(clickedItem);
 		QRect rcArea;
-		if (pTargetWidget)
+		if (QWidget* pTargetWidget = widgetData(clickedItem))
 		{
 			rcArea = ScreenRect(pTargetWidget);
 		}
-		if (pTargetItem)
+		if (QGraphicsItem* pTargetItem = graphicsData(clickedItem))
 		{
 			rcArea = ScreenRect(pTargetItem);
 		}
-		if(pLayout)
+		if (QLayout* pLayout = itemData<QLayout>(clickedItem))
 		{
 			rcArea = pLayout->geometry();
 			rcArea.moveCenter(pLayout->parentWidget()->mapToGlobal(rcArea.center()));
 		}
-		if(pSpacerItem)
+		if (QSpacerItem* pSpacerItem = itemData<QSpacerItem>(clickedItem))
 		{
 			rcArea = pSpacerItem->geometry();
 		}
@@ -309,7 +283,7 @@ void CWidgetSpyTree::ShowSignalSlot(QPoint ptGlobal, bool bRecusive /*= false*/)
 		QWidget* pTargetWidget = widgetData(clickedItem);
 		QGraphicsItem* pItem = graphicsData(clickedItem);
 
-		CSignalSpyWnd* pSpy = new CSignalSpyWnd();
+		CSignalSpyWnd* pSpy = new CSignalSpyWnd(window());
 		if (pTargetWidget)
 		{
 			pSpy->setTargetObject(pTargetWidget);
@@ -334,7 +308,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 			if (dynamic_cast<QWidget*>(pTargetWidget)) {
 				nUniqueId = dynamic_cast<QWidget*>(pTargetWidget)->winId();
 			}
-			CListInfoWnd* pInfo = new CListInfoWnd();
+			CListInfoWnd* pInfo = new CListInfoWnd(window());
 			pInfo->setWindowTitle(ObjectString(pTargetWidget));
 			pInfo->AddAttribute(_QStr("class name"), objectClass(pTargetWidget));
 			pInfo->AddAttribute(_QStr("object name"), pTargetWidget->objectName());
@@ -361,7 +335,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 			auto geoScreen = ScreenRect(pItem);
 			auto client = pItem->boundingRect();
 			int nUniqueId = -1;
-			CListInfoWnd* pInfo = new CListInfoWnd();
+			CListInfoWnd* pInfo = new CListInfoWnd(window());
 			pInfo->setWindowTitle(ObjectString(To<QObject>(pItem)));
 			pInfo->AddAttribute(_QStr("class name"), objectClass(To<QObject>(pItem)));
 			pInfo->AddAttribute(_QStr("object name"), ::objectName(To<QObject>(pItem)));
@@ -376,7 +350,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 		else if (QSpacerItem* pItem = itemData<QSpacerItem>(clickedItem))
 		{
 			auto geo = pItem->geometry();
-			CListInfoWnd* pInfo = new CListInfoWnd();
+			CListInfoWnd* pInfo = new CListInfoWnd(window());
 			pInfo->setWindowTitle("QSpacerItem");
 			pInfo->AddAttribute("class name", "QSpacerItem");
 			pInfo->AddAttribute("geometry", QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
@@ -391,7 +365,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 		else if(QLayout* pLayout = itemData<QLayout>(clickedItem))
 		{
 			auto geo = pLayout->geometry();
-			CListInfoWnd* pInfo = new CListInfoWnd();
+			CListInfoWnd* pInfo = new CListInfoWnd(window());
 			pInfo->setWindowTitle("QSpacerItem");
 			pInfo->AddAttribute("class name", ObjectString(pLayout));
 			pInfo->AddAttribute("object name", pLayout->objectName());
@@ -413,7 +387,7 @@ bool CWidgetSpyTree::ShowWidgetStatus(const QPoint& pos)
 	if (clickedItem) {
 		QWidget* pTargetWidget = widgetData(clickedItem);
 		if (pTargetWidget) {
-			CListInfoWnd* pInfo = new CListInfoWnd();
+			CListInfoWnd* pInfo = new CListInfoWnd(window());
 			pInfo->setWindowTitle(ObjectString(pTargetWidget));
 
 
@@ -508,7 +482,7 @@ bool CWidgetSpyTree::ShowEventTrace(const QPoint& pos)
 	if (clickedItem) {
 		QWidget* pTargetWidget = widgetData(clickedItem);
 		QObject* pTarget = widgetData(clickedItem) ? widgetData(clickedItem) : To<QObject>(graphicsData(clickedItem));
-		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd();
+		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd(window());
 		pEventTraceWnd->setWindowTitle(ObjectString(pTarget));
 		pEventTraceWnd->MonitorWidget(pTarget);
 		pEventTraceWnd->ShowOnTop();
@@ -535,7 +509,7 @@ bool CWidgetSpyTree::ShowEventTraceAll(const QPoint& pos)
 
 	if (clickedItem) {
 		QObject* pTarget = widgetData(clickedItem) ? widgetData(clickedItem) : To<QObject>(graphicsData(clickedItem));
-		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd();
+		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd(window());
 		pEventTraceWnd->setWindowTitle(ObjectString(pTarget)+"[All]");
 		travelTreeItem(clickedItem, [=](QTreeWidgetItem* pItem) {
 			QObject* pTarget = widgetData(pItem) ? widgetData(pItem) : To<QObject>(graphicsData(pItem));
@@ -562,7 +536,7 @@ bool CWidgetSpyTree::ShowStyleEdit(const QPoint& pos)
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (clickedItem) {
 		QWidget* pTargetWidget = widgetData(clickedItem);
-		CStyleEditWnd* pEditStyleWnd = new CStyleEditWnd();
+		CStyleEditWnd* pEditStyleWnd = new CStyleEditWnd(window());
 		pEditStyleWnd->setWindowTitle(ObjectString(pTargetWidget));
 		pEditStyleWnd->EditWidgetStyle(pTargetWidget);
 		pEditStyleWnd->ShowOnTop();
@@ -623,8 +597,7 @@ void CWidgetSpyTree::showLayout(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (QWidget* pTargetWidget = widgetData(clickedItem)) {
-		QDialog* dlg = new QDialog;
-		dlg->setWindowFlags(Qt::CustomizeWindowHint | Qt::WindowCloseButtonHint | Qt::WindowMaximizeButtonHint);
+		QDialog* dlg = new QDialog(window());
 		dlg->setLayout(new QHBoxLayout());
 		CLayoutTree* tree = new CLayoutTree();
 		tree->setTreeTarget(pTargetWidget);
@@ -634,8 +607,7 @@ void CWidgetSpyTree::showLayout(const QPoint& pos)
 
 	if(QLayout* layout = itemData<QLayout>(clickedItem))
 	{
-		QDialog* dlg = new QDialog;
-		dlg->setWindowFlags(Qt::CustomizeWindowHint | Qt::WindowCloseButtonHint | Qt::WindowMaximizeButtonHint);
+		QDialog* dlg = new QDialog(window());
 		CLayoutTree* tree = new CLayoutTree();
 		tree->setTreeTarget(layout);
 		dlg->layout()->addWidget(tree);
@@ -647,7 +619,7 @@ void CWidgetSpyTree::showObjectTree(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (QObject* pTarget = itemData<QObject>(clickedItem)) {
-		QDialog* dlg = new QDialog;
+		QDialog* dlg = new QDialog(window());
 		dlg->setLayout(new QHBoxLayout());
 		CObjectTree* tree = new CObjectTree();
 		tree->setTreeTarget(pTarget);
