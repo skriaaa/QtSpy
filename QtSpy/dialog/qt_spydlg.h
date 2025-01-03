@@ -133,12 +133,8 @@ public:
 
 protected:
 	void paintEvent(QPaintEvent* event) override;
-
-	void mouseMoveEvent(QMouseEvent* event) override
-	{
-		update();
-		QDialog::mouseMoveEvent(event);
-	}
+	void mousePressEvent(QMouseEvent* event) override;
+	void mouseMoveEvent(QMouseEvent* event) override;
 };
 
 class CLogTraceWnd :public CXDialog {
@@ -211,6 +207,19 @@ protected:
 	QSet<QObject*> m_arrMonitorObject;
 	bool m_bFilterEvent = false;
 	bool m_bRunning = true;
+};
+
+class CQtSpyObject;
+class CFindWnd : public CXDialog{
+public:
+	CFindWnd(CQtSpyObject* pSpyObject, QWidget* parent = nullptr);
+	~CFindWnd();
+protected:
+	void initWidget();
+protected:
+	CQtSpyObject* m_pSpyObject{ nullptr };
+	QList<QTreeWidgetItem*> m_arrTargetItem;
+	int m_nCurrentIndex{ 0 };
 };
 
 //class CResourceManageWnd : public CXDialog {

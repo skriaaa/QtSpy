@@ -1,6 +1,7 @@
 #pragma once
 #include <QTime>
 #include <QHash>
+#include <QElapsedTimer>
 class CTimeKeeper
 {
 public:
@@ -15,8 +16,8 @@ public:
 	QString queryTimePointString(QString explaination);
 	QString queryTimePointString();
 private:
-	QTime m_tStart;
-	QHash<QString, int> m_hashTimePoint;
+	QElapsedTimer m_Timer;
+	QHash<QString, qint64> m_hashTimePoint;
 	QStringList m_listTimePoint;
 };
 

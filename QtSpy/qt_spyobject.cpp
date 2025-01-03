@@ -242,7 +242,7 @@ bool CQtSpyObject::initToolWindow()
 	QObject::connect(actionCursorSearch, &QAction::triggered, [&]() {
 		SearchSpyTreeByCursor();
 		});
-	QAction* actionCursorLocate = new QAction(_QStr("鼠标定位"));
+	QAction* actionCursorLocate = new QAction(_QStr("屏幕坐标"));
 	QObject::connect(actionCursorLocate, &QAction::triggered, [&]() {
 		ShowCursorLocate();
 		});
@@ -468,59 +468,8 @@ bool CQtSpyObject::ShowSystemFont()
 
 bool CQtSpyObject::SearchSpyTreeByName()
 {
-	QDialog &dlg = *(new QDialog(m_pMainWindow));
-	dlg.setAttribute(Qt::WA_DeleteOnClose);
-	dlg.setWindowTitle(_QStr("查找"));
-	dlg.setLayout(new QVBoxLayout());
-	auto layout = dynamic_cast<QVBoxLayout*>(dlg.layout());
-	auto layout1 = new QHBoxLayout();
-	QPushButton* pBtnYes, * pBtnNext, * pBtnPrev;
-	QLineEdit* pEdit;
-	layout1->addWidget(new QLabel("对象名称"));
-	layout1->addWidget(pEdit = new QLineEdit());
-	layout1->addWidget(pBtnYes = new QPushButton("查找全部"));
-	layout1->addWidget(pBtnNext = new QPushButton("下一个"));
-	layout1->addWidget(pBtnPrev = new QPushButton("上一个"));
-	QList<QWidget*> arrTargetItem;
-	int nCurrentIndex = 0;
-	QObject::connect(pBtnYes, &QPushButton::clicked, [&]() {
-		arrTargetItem.clear();
-		QString strName = pEdit->text();
-		if (m_pSpyWidget) {
-			for (auto pWidget : m_mapWidgetNode.keys()) {
-				if (pWidget->objectName().contains(strName, Qt::CaseInsensitive)
-					|| QString(pWidget->metaObject()->className()).contains(strName, Qt::CaseInsensitive))
-				{
-					arrTargetItem.append(pWidget);
-				}
-			}
-			if (!arrTargetItem.empty())
-			{
-				m_mapWidgetNode[arrTargetItem.front()]->setExpanded(true);
-				m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[arrTargetItem.front()]);
-			}
-		}
-		});
-	QObject::connect(pBtnNext, &QPushButton::clicked, [&]() {
-		if(arrTargetItem.size() - 1 > nCurrentIndex)
-		{
-			nCurrentIndex++;
-			QWidget* pWidget = *(arrTargetItem.begin() + nCurrentIndex);
-			m_mapWidgetNode[pWidget]->setExpanded(true);
-			m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pWidget]);
-		}
-		});
-	QObject::connect(pBtnPrev, &QPushButton::clicked, [&]() {
-		if (nCurrentIndex > 0)
-		{
-			nCurrentIndex--;
-			QWidget* pWidget = *(arrTargetItem.begin() + nCurrentIndex);
-			m_mapWidgetNode[pWidget]->setExpanded(true);
-			m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pWidget]);
-		}
-	});
-	layout->addLayout(layout1);
-	dlg.show();
+	CFindWnd* pFindWnd = new CFindWnd(this, m_pMainWindow);
+	pFindWnd->show();
 	return true;
 }
 
@@ -561,3 +510,4 @@ bool CQtSpyObject::CheckColor()
 	QApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
 	return true;
 }
+

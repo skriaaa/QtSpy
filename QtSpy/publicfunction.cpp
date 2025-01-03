@@ -146,6 +146,10 @@ QString objectName(QObject* object)
 	return QString();
 }
 
+QString pointerToHex(const void* pointer) {
+	return "0x" + QString::number((uintptr_t)pointer, 16);
+}
+
 QString ObjectString(QObject* object)
 {
 	if (object == nullptr)
@@ -174,17 +178,16 @@ QString ObjectString(QObject* object)
 			auto typeWidget = dynamic_cast<QComboBox*>(object);
 			strText = typeWidget->windowTitle();
 		}
-		strText += " | " + object->objectName();
+		strText += QString(" | %1 | %2").arg(object->objectName()).arg(pointerToHex(object));
 	}
 	else if (OTo<QGraphicsItem>(object))
 	{
 		//strText = "graphicsItem";
-		strText = QString("%1=0x%2").arg("graphicsItem").arg((quintptr)OTo<QGraphicsItem>(object),
-				QT_POINTER_SIZE * 2, 16, QChar('0'));
+		strText = QString("%1=%2").arg("graphicsItem").arg(pointerToHex(object));
 	}
 	else if(OTo<QLayout>(object))
 	{
-		strText += " | " + object->objectName();
+		strText += QString(" | %1 | %2").arg(object->objectName()).arg(pointerToHex(object));
 	}
 
 	QString strItemInfo = QString("%1(%2)").arg(objectClass(object)).arg(strText);

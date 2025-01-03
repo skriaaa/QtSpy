@@ -47,6 +47,8 @@ public:
 
 	void showObjectTree(const QPoint& pos);
 
+	QRect itemArea(QTreeWidgetItem* pItem);
+
 	template<class T> T* itemData(QTreeWidgetItem* item);
 	QGraphicsItem* graphicsData(QTreeWidgetItem* item);
 	QWidget* widgetData(QTreeWidgetItem* item);

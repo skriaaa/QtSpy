@@ -42,6 +42,8 @@
 #include "proxyStyle/ProxyStyle.h"
 #include "StyleEditDlg.h"
 #include "utils/LogRecorder.h"
+#include "qt_spyobject.h"
+#include "ObjectTree.h"
 
 CSpyIndicatorWnd::CSpyIndicatorWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent),
 m_Timer(QTimer(this))
@@ -546,6 +548,20 @@ void CCursorLocateWnd::paintEvent(QPaintEvent* event)
 	painter.drawText(rect().center(), QString("global mouse : (%1,%2)").arg(ptGlobal.x()).arg(ptGlobal.y()));
 }
 
+void CCursorLocateWnd::mousePressEvent(QMouseEvent* event)
+{
+	if(event->button() == Qt::RightButton)
+	{
+		close();
+	}
+}
+
+void CCursorLocateWnd::mouseMoveEvent(QMouseEvent* event)
+{
+	update();
+	QDialog::mouseMoveEvent(event);
+}
+
 CLogTraceWnd::CLogTraceWnd(QWidget* parent /*= nullptr*/) :CXDialog(parent)
 {
 	resize(400, 300);
@@ -751,23 +767,44 @@ QString CEventTraceWnd::EventInfo(T* pTarget, QEvent* event)
 	if (!event) {
 		return _QStr("event [NULL]") + strTarget;
 	}
-	auto type = event->type();
-	for (int i = 0; i < queryEnumCount<QEvent::Type>(); ++i)
+
+	QString strEventType = queryEnumName<QEvent::Type>(event->type());
+	if(!strEventType.isEmpty())
 	{
-		if (type == queryEnumValue<QEvent::Type>(i))
+		QString strInfo = QString("event [%1]%2").arg(strEventType).arg(strTarget);
+		switch (event->type())
 		{
-			QString strInfo = QString("event [%1]%2").arg(queryEnumName<QEvent::Type>(i)).arg(strTarget);
-			if (event->type() == QEvent::MouseButtonPress)
+		case QEvent::CursorChange:
+		{
+			if (QWidget* pWidget = dynamic_cast<QWidget*>(pTarget))
 			{
-				QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(event);
-				QString strPos = QString("Pos(%1,%2) GlobalPos(%3,%4)-(%5,%6)").arg(pMouseEvent->x()).arg(pMouseEvent->y()).arg(pMouseEvent->globalX()).arg(pMouseEvent->globalY()).arg(QCursor::pos().x()).arg(QCursor::pos().y());
-				strInfo += strPos;
+				strInfo += QString("--- ( %1 )").arg(queryEnumName<Qt::CursorShape>(pWidget->cursor().shape()));
 			}
-			return strInfo;
+
+			if (QGraphicsItem* pGraphicsItem = dynamic_cast<QGraphicsItem*>(pTarget))
+			{
+				strInfo += QString("--- ( %1 )").arg(queryEnumName<Qt::CursorShape>(pGraphicsItem->cursor().shape()));
+			}
+			break;
 		}
+		case QEvent::MouseButtonRelease:
+		case QEvent::MouseButtonPress:
+		case QEvent::MouseMove:
+		{
+			QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(event);
+			QString strPos = QString("--- Pos(%1,%2) GlobalPos(%3,%4)-(%5,%6)").arg(pMouseEvent->x()).arg(pMouseEvent->y()).arg(pMouseEvent->globalX()).arg(pMouseEvent->globalY()).arg(QCursor::pos().x()).arg(QCursor::pos().y());
+			strInfo += strPos;
+			break;
+		}
+
+		default:
+			break;
+		}
+
+		return strInfo;
 	}
 
-	if (type >= QEvent::User && type < QEvent::MaxUser) {
+	if (event->type() >= QEvent::User && event->type() < QEvent::MaxUser) {
 		return _QStr("event [user define]") + strTarget;
 	}
 	return _QStr("event [unknow]") + strTarget;
@@ -788,3 +825,60 @@ void CSignalSpyWnd::CSignalSpy::setTraceWnd(CLogTraceWnd* wnd)
 {
 	m_TraceWnd = wnd;
 }
+
+CFindWnd::CFindWnd(CQtSpyObject* pSpyObject, QWidget* parent /*= nullptr*/):CXDialog(parent)
+{
+	m_pSpyObject = pSpyObject;
+	initWidget();
+}
+
+CFindWnd::~CFindWnd()
+{
+
+}
+
+void CFindWnd::initWidget()
+{
+	QPushButton* pBtnYes = new QPushButton("查找全部");
+	QPushButton* pBtnNext = new QPushButton("下一个");
+	QPushButton* pBtnPrev = new QPushButton("上一个");
+	QLineEdit* pEdit = new QLineEdit();
+
+	QObject::connect(pBtnYes, &QPushButton::clicked, [this, pEdit]() {
+		m_arrTargetItem = m_pSpyObject->m_pMainWindow->tree()->findItems(pEdit->text(), Qt::MatchFlag::MatchContains | Qt::MatchRecursive);
+		if (!m_arrTargetItem.empty())
+		{
+			m_arrTargetItem.front()->setExpanded(true);
+			m_pSpyObject->m_pMainWindow->tree()->setCurrentItem(m_arrTargetItem.front());
+		}
+	});
+	QObject::connect(pBtnNext, &QPushButton::clicked, [&]() {
+		if (m_arrTargetItem.size() - 1 > m_nCurrentIndex)
+		{
+			m_nCurrentIndex++;
+			m_arrTargetItem[m_nCurrentIndex]->setExpanded(true);
+			m_pSpyObject->m_pMainWindow->tree()->setCurrentItem(m_arrTargetItem[m_nCurrentIndex]);
+		}
+	});
+	QObject::connect(pBtnPrev, &QPushButton::clicked, [&]() {
+		if (m_nCurrentIndex > 0)
+		{
+			m_nCurrentIndex--;
+			m_arrTargetItem[m_nCurrentIndex]->setExpanded(true);
+			m_pSpyObject->m_pMainWindow->tree()->setCurrentItem(m_arrTargetItem[m_nCurrentIndex]);
+		}
+	});
+
+	auto pLayout = new QHBoxLayout();
+	pLayout->addWidget(new QLabel("对象名称"));
+	pLayout->addWidget(pEdit);
+	pLayout->addWidget(pBtnYes);
+	pLayout->addWidget(pBtnNext);
+	pLayout->addWidget(pBtnPrev);
+
+	setAttribute(Qt::WA_DeleteOnClose);
+	setWindowTitle(_QStr("查找"));
+	setLayout(new QVBoxLayout());
+	dynamic_cast<QVBoxLayout*>(layout())->addLayout(pLayout);
+}
+

@@ -2,12 +2,12 @@
 
 void CTimeKeeper::startMonitor()
 {
-	m_tStart = QTime::currentTime();
+	m_Timer.start();
 }
 
 void CTimeKeeper::addTimePoint(QString explaination)
 {
-	m_hashTimePoint[explaination] = m_tStart.msecsTo(QTime::currentTime());
+	m_hashTimePoint[explaination] = m_Timer.nsecsElapsed();
 	m_listTimePoint.append(explaination);
 }
 

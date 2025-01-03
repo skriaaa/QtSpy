@@ -40,6 +40,7 @@ private:
 };
 
 class CQtSpyObject : public QObject {
+	friend class CFindWnd;
 public:
 	CQtSpyObject(QWidget* parent = nullptr);
 	~CQtSpyObject();

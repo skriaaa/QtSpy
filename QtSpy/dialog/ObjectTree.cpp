@@ -23,6 +23,10 @@ CWidgetSpyTree::CWidgetSpyTree(QWidget* parent /*= nullptr*/) : QTreeWidget(pare
 
 	setSelectionBehavior(QAbstractItemView::SelectRows);
 	setSelectionMode(QAbstractItemView::SingleSelection);
+
+	connect(this, &QTreeWidget::currentItemChanged, [this](QTreeWidgetItem* pCurrentItem) {
+		CSpyIndicatorWnd::showWnd(itemArea(pCurrentItem), false);
+	});
 }
 
 bool CWidgetSpyTree::setTreeTarget(QGraphicsItem* target)
@@ -239,41 +243,7 @@ void CWidgetSpyTree::ChangeWidgetPosOrSize(QPoint ptGlobal)
 
 void CWidgetSpyTree::IndicatorWidget(QPoint ptGlobal)
 {
-	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
-	if (clickedItem) {
-		QRect rcArea;
-		if (QWidget* pTargetWidget = widgetData(clickedItem))
-		{
-			rcArea = ScreenRect(pTargetWidget);
-		}
-		if (QGraphicsItem* pTargetItem = graphicsData(clickedItem))
-		{
-			rcArea = ScreenRect(pTargetItem);
-		}
-		if (QLayout* pLayout = itemData<QLayout>(clickedItem))
-		{
-			rcArea = pLayout->geometry();
-			rcArea.moveCenter(pLayout->parentWidget()->mapToGlobal(rcArea.center()));
-		}
-		if (QSpacerItem* pSpacerItem = itemData<QSpacerItem>(clickedItem))
-		{
-			rcArea = pSpacerItem->geometry();
-		}
-
-		if (rcArea.isEmpty())
-		{
-			if (rcArea.width() == 0)
-			{
-				rcArea.setWidth(50);
-			}
-			if (rcArea.height() == 0)
-			{
-				rcArea.setHeight(50);
-			}
-		}
-
-		CSpyIndicatorWnd::showWnd(rcArea,false);
-	}
+	CSpyIndicatorWnd::showWnd(itemArea(itemAt(mapFromGlobal(ptGlobal))),false);
 }
 
 void CWidgetSpyTree::ShowSignalSlot(QPoint ptGlobal, bool bRecusive /*= false*/)
@@ -626,6 +596,47 @@ void CWidgetSpyTree::showObjectTree(const QPoint& pos)
 		dlg->layout()->addWidget(tree);
 		dlg->show();
 	}
+}
+
+QRect CWidgetSpyTree::itemArea(QTreeWidgetItem* pItem)
+{
+	QRect rcArea;
+	if (nullptr == pItem)
+	{
+		return rcArea;
+	}
+
+	if (QWidget* pTargetWidget = widgetData(pItem))
+	{
+		rcArea = ScreenRect(pTargetWidget);
+	}
+	else if (QGraphicsItem* pTargetItem = graphicsData(pItem))
+	{
+		rcArea = ScreenRect(pTargetItem);
+	}
+	else if (QLayout* pLayout = itemData<QLayout>(pItem))
+	{
+		rcArea = pLayout->geometry();
+		rcArea.moveCenter(pLayout->parentWidget()->mapToGlobal(rcArea.center()));
+	}
+	else if (QSpacerItem* pSpacerItem = itemData<QSpacerItem>(pItem))
+	{
+		rcArea = pSpacerItem->geometry();
+	}
+
+	if (rcArea.isEmpty())
+	{
+		if (rcArea.width() == 0)
+		{
+			rcArea.setWidth(50);
+		}
+		if (rcArea.height() == 0)
+		{
+			rcArea.setHeight(50);
+		}
+	}
+
+	return rcArea;
 }
 
 template<class T>
