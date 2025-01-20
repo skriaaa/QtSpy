@@ -100,33 +100,34 @@ macro(GENERAL_CONFIGURATION)
 		set(CMAKE_BUILD_TYPE "Debug")
 		set(CMAKE_INSTALL_CONFIG_NAME "Debug")
 		
-		# Qt版本
-		if(QTVERSION EQUAL 6)
-			set(QT_VERSION 6.5.3)
-			#set(QT_VERSION 6.5.3 PARENT_SCOPE)
-			set(QT_VERSION_MAJOR 6)
-			#set(QT_VERSION_MAJOR 6 PARENT_SCOPE)
-			set(QTCMAKE_PATH "E:/Develop/tookits/Qt/6.5.3/msvc2019_64")
-		else()
-			set(QT_VERSION 5.14.2)
-			#set(QT_VERSION 5.14.2 PARENT_SCOPE)
-			set(QT_VERSION_MAJOR 5)
-			#set(QT_VERSION_MAJOR 5 PARENT_SCOPE)
-			set(QTCMAKE_PATH "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017/bin")
+		# Qt版本及路径
+		set(QT_VERSION 5.14.2)
+		set(QT_VERSION_MAJOR 5)
+		
+		if(CMAKE_SIZEOF_VOID_P EQUAL 8) # x64
+			set(QT${QT_VERSION_MAJOR}_DIR "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017_64")
+		elseif(CMAKE_SIZEOF_VOID_P EQUAL 4) # x86
+			set(QT${QT_VERSION_MAJOR}_DIR "D:/DevelopSoftware/Qt/Qt5.14.2/5.14.2/msvc2017")
 		endif()
+		set(QTCMAKE_PATH "${QT${QT_VERSION_MAJOR}_DIR}/bin")
+		set(CMAKE_PREFIX_PATH ${QT${QT_VERSION_MAJOR}_DIR})
+		
+		message("Current Qt Path : ${CMAKE_PREFIX_PATH}")
 		message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
-
 		
 	elseif(PLATFORMTYPE STREQUAL "Linux")
 		# 在 Linux 平台上的逻辑
 		set(BUILD_GENERATOR_NAME "Unix Makefiles")
 		set(CMAKE_BUILD_TYPE "Debug")
 		set(CMAKE_INSTALL_CONFIG_NAME "Debug")
+		
+		# Qt版本及路径
 		set(QT_VERSION 5.14.2)
-		set(QTCMAKE_PATH "/opt/Qt${QT_VERSION}/${QT_VERSION}/gcc_64")
 		set(QT_VERSION_MAJOR 5)
-		set(QT5_DIR "/opt/Qt${QT_VERSION}/${QT_VERSION}/gcc_64")
-		set(CMAKE_PREFIX_PATH ${QTCMAKE_PATH})
+		set(QT${QT_VERSION_MAJOR}_DIR "/opt/Qt${QT_VERSION}/${QT_VERSION}/gcc_64")
+		set(QTCMAKE_PATH ${QT${QT_VERSION_MAJOR}_DIR})
+		set(CMAKE_PREFIX_PATH ${QT${QT_VERSION_MAJOR}_DIR})
+		
 		message("Current Qt Path : ${CMAKE_PREFIX_PATH}")
 		message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
 	endif()
@@ -136,8 +137,6 @@ macro(INCLUDEDIRECTORY)
 	target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 endmacro()
 
-set(appendSysValue "" "")
-
 # 将路径添加到系统环境变量中
 macro(addPathToSysVar targetPath varName)
 	set(value $ENV{${varName}})
@@ -146,6 +145,7 @@ macro(addPathToSysVar targetPath varName)
 	else()
 		set(value "$ENV{${varName}};${targetPath}")
 	endif()
+	message("add system environment variable: ${varName}=${targetPath}")
 	execute_process(COMMAND "setx" "${varName}" "${value}" /m)
 endmacro()
 

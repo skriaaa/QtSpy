@@ -12,15 +12,15 @@ SetGeneralConfiguration()
 # 宏定义
 add_definitions(-DQTSPY_UTILS)
 
-if(QTVERSION EQUAL 6)
-	set(targetPath ${PROJECT_SOURCE_DIR}/../bin)
-	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${targetPath})
-	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${targetPath})
-else()
-	set(targetPath ${PROJECT_SOURCE_DIR})
-	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${targetPath})
-	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${targetPath})
-endif()
+# 输出路径
+set(targetPath ${PROJECT_SOURCE_DIR})
+set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${targetPath})
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${targetPath})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${targetPath})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${targetPath})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${targetPath})
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${targetPath})
 
 # 添加源文件
 findSourceFile(
@@ -43,9 +43,4 @@ INCLUDEDIRECTORY()
 add_definitions(-DQT_SPY_LIB)
 
 # 添加路径到系统环境变量
-set($ENV{QT_SPY_INCLUDE} ${CMAKE_CURRENT_SOURCE_DIR})
-
-## 使用该库，需要在qt工程中添加以下
-#QT += testlib
-#INCLUDEPATH += $(QT_SPY_INCLUDE)
-#LIBS += -L$(QT_SPY_INCLUDE) -lQtSpy
+addPathToSysVar(${CMAKE_CURRENT_SOURCE_DIR} QT_SPY_INCLUDE)
