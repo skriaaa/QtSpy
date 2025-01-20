@@ -9,7 +9,7 @@
 
 1、在Qt工程.pro中添加
 ```c++
-#  QT_SPY_INCLUE是CMakeLists.txt所在文件夹
+// QT_SPY_INCLUE是CMakeLists.txt所在文件夹，在linux下需要替换成绝对路径
 QT += testlib
 INCLUDEPATH += $(QT_SPY_INCLUDE) 
 LIBS += -L$(QT_SPY_INCLUDE) -lQtSpy
@@ -22,3 +22,6 @@ LIBS += -L$(QT_SPY_INCLUDE) -lQtSpy
 ```c++
 QtSpy::initSpy();
 ```
+
+问题：
+运行时如果找不到Qtxxx.lib 就把qt的路径（路径一直配到bin）配置到系统环境变量中
