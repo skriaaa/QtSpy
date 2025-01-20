@@ -139,14 +139,14 @@ endmacro()
 
 # 将路径添加到系统环境变量中
 macro(addPathToSysVar targetPath varName)
-	set(value $ENV{${varName}})
-	if("${value}" STREQUAL "")
+	#set(value $ENV{${varName}})
+	#if("${value}" STREQUAL "")
 		set(value ${targetPath})
-	else()
-		set(value "$ENV{${varName}};${targetPath}")
-	endif()
+	#else()
+	#	set(value "$ENV{${varName}};${targetPath}")
+	#endif()
 	message("add system environment variable: ${varName}=${targetPath}")
-	execute_process(COMMAND "setx" "${varName}" "${value}" /m)
+	execute_process(COMMAND "setx" "${varName}" "${targetPath}" /m)
 endmacro()
 
 # 添加Qt模块
