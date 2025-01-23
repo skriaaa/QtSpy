@@ -2,7 +2,7 @@
 
 1、在utils.cmake里配置Qt版本和路径
 2、build目录，执行   windows：build.bat/built_64.bat； linux：linux_build.sh
-
+3、windows下生成的是vs的工程，需要编一下。linux下的执行完就编译了
 
 
 引入(静态库)：

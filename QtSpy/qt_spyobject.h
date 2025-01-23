@@ -45,6 +45,7 @@ public:
 	CQtSpyObject(QWidget* parent = nullptr);
 	~CQtSpyObject();
 public:
+	int currentItemCount();
 	virtual bool eventFilter(QObject* watched, QEvent* event) override;
 public:
 	bool setTreeTarget(QPoint pt);
@@ -65,6 +66,6 @@ private:
 	CSpyMainWindow* m_pMainWindow;
 	QWidget* m_pSpyWidget;
 	QGraphicsItem* m_pSpyViewItem{nullptr};
-	QHash<QWidget*, QTreeWidgetItem*> m_mapWidgetNode;
+	QHash<void*, QTreeWidgetItem*> m_mapWidgetNode;
 	EScreenMouseAction m_eCursorAction = EScreenMouseAction::None;
 };

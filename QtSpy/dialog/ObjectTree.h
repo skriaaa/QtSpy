@@ -29,8 +29,6 @@ public:
 
 	bool ShowWidgetStatus(const QPoint& pos);
 
-	bool ShowWidgetResourceHub(const QPoint& pos);
-
 	bool ShowEventTrace(const QPoint& pos);
 
 	bool ShowEventTraceAll(const QPoint& pos);
@@ -52,7 +50,7 @@ public:
 	template<class T> T* itemData(QTreeWidgetItem* item);
 	QGraphicsItem* graphicsData(QTreeWidgetItem* item);
 	QWidget* widgetData(QTreeWidgetItem* item);
-	QHash<QWidget*, QTreeWidgetItem*> m_mapWidgetNode;
+	QHash<void*, QTreeWidgetItem*> m_mapWidgetNode;
 };
 
 

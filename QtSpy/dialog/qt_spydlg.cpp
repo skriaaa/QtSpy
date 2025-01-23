@@ -296,7 +296,7 @@ CSignalSpyWnd::~CSignalSpyWnd()
 void CSignalSpyWnd::setTargetObject(QObject* target)
 {
 	m_pTargetObject = target;
-	QString strText = ObjectString(target);
+	QString strText = objectString(target);
 
 	setWindowTitle(strText);
 	setContent();
@@ -385,7 +385,6 @@ void CSignalSpyWnd::initContextMenu()
 		if (acbk == acEmit)
 		{
 			QTableWidgetItem* item = m_pSignalTable->itemAt(m_pSignalTable->viewport()->mapFromGlobal(pt));
-			assert(item);
 			if (item)
 			{
 				QMetaMethod* method = static_cast<QMetaMethod*>(item->data(Qt::UserRole).value<void*>());
@@ -418,7 +417,7 @@ void CSignalSpyWnd::initContextMenu()
 			}
 			traceWnd()->ShowOnTop();
 		}
-		});
+	});
 }
 
 void CSignalSpyWnd::addItem(QTableWidget* table, int row, int col, const QMetaObject* metaObject, QMetaMethod* method)
@@ -503,10 +502,8 @@ CStatusInfoWnd::CStatusInfoWnd(QWidget* parent) : CListInfoWnd(parent)
 void CStatusInfoWnd::UpdateStatusInfo()
 {
 	ClearAll();
-	//TLogAction& log = GetCoreInst().RefLogAction();
-	//AddInfo(_QStr("当前对象数"), QString::number(log.nCurrentObjectNum));
-	//AddInfo(_QStr("最大分配对象数"), QString::number(log.nMaxCreatedObjectNum));
-	//AddInfo(_QStr("已析构对象数"), QString::number(log.nMaxCreatedObjectNum - log.nCurrentObjectNum));
+	AddAttribute("当前控件数", QString::number(qApp->allWidgets().size()));
+	AddAttribute("页面控件数", QString::number(dynamic_cast<CSpyMainWindow*>(parentWidget())->spyObject()->currentItemCount()));
 }
 
 void CStatusInfoWnd::keyReleaseEvent(QKeyEvent* event)
@@ -760,10 +757,7 @@ template<typename T>
 QString CEventTraceWnd::EventInfo(T* pTarget, QEvent* event)
 {
 	QString strTarget = " --- ";
-	if (dynamic_cast<QObject*>(pTarget))
-	{
-		strTarget += ObjectString(dynamic_cast<QObject*>(pTarget));
-	}
+	strTarget += objectString(pTarget);
 	if (!event) {
 		return _QStr("event [NULL]") + strTarget;
 	}

@@ -57,7 +57,7 @@ bool CWidgetSpyTree::setTreeTarget(QObject* target)
 bool CWidgetSpyTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 	if (parent && parentNode) {
 		m_mapWidgetNode[parent] = parentNode;
-		parentNode->setText(0, ObjectString(parent));
+		parentNode->setText(0, objectString(parent));
 		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
 		QList<QWidget*> children = parent->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
 		for (QWidget* child : children) {
@@ -86,7 +86,8 @@ bool CWidgetSpyTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode)
 bool CWidgetSpyTree::AddSubSpyNode(QGraphicsItem* parent, QTreeWidgetItem* parentNode)
 {
 	if (parent && parentNode) {
-		parentNode->setText(0, ObjectString(To<QObject>(parent)));
+		m_mapWidgetNode[parent] = parentNode;
+		parentNode->setText(0, objectString(parent));
 		parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
 		QList<QGraphicsItem*> children = parent->childItems();
 		for (QGraphicsItem* child : children) {
@@ -134,7 +135,6 @@ void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 	QAction* actionStyleEdit = contextMenu.addAction("风格编辑");
 	QAction* actionUserDrawParam = contextMenu.addAction("自绘控件");
 	QAction* actionWidgetStatus = contextMenu.addAction("组件状态");
-	QAction* actionResourceHub = contextMenu.addAction("资源仓库");
 	QAction* actionChangeVisible = contextMenu.addAction("显示|隐藏");
 	QAction* actionChangeEnable = contextMenu.addAction("启用|禁用");
 	QAction* actionMoveOrScale = contextMenu.addAction("移动|缩放");
@@ -176,9 +176,6 @@ void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 	else if (selectedAction == actionSpyFirstParent) {
 		SpyFirstParentWidget(pos);
 	}
-	else if (selectedAction == actionResourceHub) {
-		ShowWidgetResourceHub(pos);
-	}
 	else if (selectedAction == actionChangeVisible) {
 		ChangeWidgetVisible(pos);
 	}
@@ -197,12 +194,12 @@ void CWidgetSpyTree::ChangeWidgetVisible(QPoint ptGlobal)
 		if (QWidget* pTargetWidget = widgetData(clickedItem))
 		{
 			pTargetWidget->setVisible(!pTargetWidget->isVisible());
-			clickedItem->setText(0, ObjectString(pTargetWidget));
+			clickedItem->setText(0, objectString(pTargetWidget));
 		}
 		else if (QGraphicsItem* pTargetItem = graphicsData(clickedItem))
 		{
 			pTargetItem->setVisible(!pTargetItem->isVisible());
-			clickedItem->setText(0, ObjectString(To<QObject>(pTargetItem)));
+			clickedItem->setText(0, objectString(pTargetItem));
 		}
 	}
 }
@@ -214,12 +211,12 @@ void CWidgetSpyTree::ChangeWidgetEnable(QPoint ptGlobal)
 		if (QWidget* pTargetWidget = widgetData(clickedItem))
 		{
 			pTargetWidget->setEnabled(!pTargetWidget->isEnabled());
-			clickedItem->setText(0, ObjectString(pTargetWidget));
+			clickedItem->setText(0, objectString(pTargetWidget));
 		}
 		else if (QGraphicsItem* pTargetItem = graphicsData(clickedItem))
 		{
 			pTargetItem->setEnabled(!pTargetItem->isEnabled());
-			clickedItem->setText(0, ObjectString(To<QObject>(pTargetItem)));
+			clickedItem->setText(0, objectString(pTargetItem));
 		}
 	}
 }
@@ -250,15 +247,12 @@ void CWidgetSpyTree::ShowSignalSlot(QPoint ptGlobal, bool bRecusive /*= false*/)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(ptGlobal));
 	if (clickedItem) {
-		QWidget* pTargetWidget = widgetData(clickedItem);
-		QGraphicsItem* pItem = graphicsData(clickedItem);
-
 		CSignalSpyWnd* pSpy = new CSignalSpyWnd(window());
-		if (pTargetWidget)
+		if (QWidget* pTargetWidget = widgetData(clickedItem))
 		{
 			pSpy->setTargetObject(pTargetWidget);
 		}
-		else
+		else if(QGraphicsItem* pItem = graphicsData(clickedItem))
 		{
 			pSpy->setTargetObject(To<QObject>(pItem));
 		}
@@ -279,7 +273,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 				nUniqueId = dynamic_cast<QWidget*>(pTargetWidget)->winId();
 			}
 			CListInfoWnd* pInfo = new CListInfoWnd(window());
-			pInfo->setWindowTitle(ObjectString(pTargetWidget));
+			pInfo->setWindowTitle(objectString(pTargetWidget));
 			pInfo->AddAttribute(_QStr("class name"), objectClass(pTargetWidget));
 			pInfo->AddAttribute(_QStr("object name"), pTargetWidget->objectName());
 			pInfo->AddAttribute(_QStr("geometry"), QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
@@ -306,7 +300,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 			auto client = pItem->boundingRect();
 			int nUniqueId = -1;
 			CListInfoWnd* pInfo = new CListInfoWnd(window());
-			pInfo->setWindowTitle(ObjectString(To<QObject>(pItem)));
+			pInfo->setWindowTitle(objectString(pItem));
 			pInfo->AddAttribute(_QStr("class name"), objectClass(To<QObject>(pItem)));
 			pInfo->AddAttribute(_QStr("object name"), ::objectName(To<QObject>(pItem)));
 			pInfo->AddAttribute(_QStr("geometry"), QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
@@ -337,7 +331,7 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 			auto geo = pLayout->geometry();
 			CListInfoWnd* pInfo = new CListInfoWnd(window());
 			pInfo->setWindowTitle("QSpacerItem");
-			pInfo->AddAttribute("class name", ObjectString(pLayout));
+			pInfo->AddAttribute("class name", objectString(pLayout));
 			pInfo->AddAttribute("object name", pLayout->objectName());
 			pInfo->AddAttribute("geometry", QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
 			pInfo->AddAttribute("geometry size", QString("(%1,%2)").arg(geo.width()).arg(geo.height()));
@@ -354,95 +348,61 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 bool CWidgetSpyTree::ShowWidgetStatus(const QPoint& pos)
 {
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
-	if (clickedItem) {
-		QWidget* pTargetWidget = widgetData(clickedItem);
-		if (pTargetWidget) {
-			CListInfoWnd* pInfo = new CListInfoWnd(window());
-			pInfo->setWindowTitle(ObjectString(pTargetWidget));
-
-
-			QStyleOption option;
-			option.initFrom(pTargetWidget);
-			QStringList arrState;
-			for (int i = 0; i < queryEnumCount<QStyle::StateFlag>(); i++)
-			{
-				if (option.state.testFlag(queryEnumValue<QStyle::StateFlag>(i)))
-				{
-					arrState.append(queryEnumName<QStyle::StateFlag>(i));
-				}
-			}
-			pInfo->AddAttribute("QStyle::StateFlag", arrState.join(" | "));
-
-			QStringList arrAttribute;
-			for (int i = 0; i < Qt::AA_AttributeCount; i++)
-			{
-				if (pTargetWidget->testAttribute((Qt::WidgetAttribute)i))
-				{
-					arrAttribute.append(queryEnumName<Qt::WidgetAttribute>((Qt::WidgetAttribute)i));
-				}
-			}
-			pInfo->AddAttribute("WidgetAttribute", arrAttribute.join(" | "));
-
-			QStringList arrWindowType;
-			for (int i = 0; i < queryEnumCount<Qt::WindowType>(); ++i)
-			{
-				if (pTargetWidget->windowFlags().testFlag(queryEnumValue<Qt::WindowType>(i)))
-				{
-					arrWindowType.append(queryEnumName<Qt::WindowType>(i));
-				}
-			}
-			pInfo->AddAttribute("WindowType", arrWindowType.join(" | "));
-
-			QStringList arrUserProperty;
-			for (int i = 0; i < pTargetWidget->metaObject()->propertyCount(); i++)
-			{
-				QMetaProperty property = pTargetWidget->metaObject()->property(i);
-			}
-
-			auto button = dynamic_cast<QAbstractButton*>(pTargetWidget);
-			if (button) {
-				pInfo->AddAttribute(_QStr("抽象按钮类"), button->isCheckable() ? _QStr("可勾选") : _QStr("不可勾选"));
-				pInfo->AddAttribute(_QStr("抽象按钮类"), button->isChecked() ? _QStr("已勾选") : _QStr("未勾选"));
-				pInfo->AddAttribute(_QStr("抽象按钮类"), button->group() ? _QStr("已分组") : _QStr("未分组"));
-			}
-			pInfo->ShowOnTop();
-		}
+	if (!clickedItem) {
+		return false;
 	}
-	return true;
-}
 
-bool CWidgetSpyTree::ShowWidgetResourceHub(const QPoint& pos)
-{
-	//QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
-	//if (clickedItem) {
-	//	QWidget* pTargetWidget = clickedItem->data(0, Qt::UserRole).value<QWidget*>();
-	//	if (dynamic_cast<CProxyObject*>(pTargetWidget)) {
-	//		CProxyObject* pObject = dynamic_cast<CProxyObject*>(pTargetWidget);
-	//		CListInfoWnd* pInfo = new CListInfoWnd();
-	//		pInfo->setWindowTitle(WidgetString(pTargetWidget));
-	//		if (pObject) {
-	//			auto hub = pObject->GetResourceHub();
-	//			for (int nIndex = 0; nIndex < hub.CountResource(); ++nIndex)
-	//			{
-	//				pInfo->AddInfo(_QStr("自身资源仓库"), hub.GetResourceDescribe(nIndex));
-	//			}
-	//		}
-	//		auto hubParent = pObject->GetDomainResourceHub();
-	//		for (int nIndex = 0; nIndex < hubParent.CountResource(); ++nIndex)
-	//		{
-	//			pInfo->AddInfo(_QStr("领域资源仓库"), hubParent.GetResourceDescribe(nIndex));
-	//		}
-	//		auto hubGlobal = GetCoreInst().GetResourceHub();
-	//		for (int nIndex = 0; nIndex < hubGlobal.CountResource(); ++nIndex)
-	//		{
-	//			pInfo->AddInfo(_QStr("全局资源仓库"), hubGlobal.GetResourceDescribe(nIndex));
-	//		}
-	//		pInfo->ShowOnTop();
-	//	}
-	//	else {
-	//		QMessageBox::information(nullptr, _QStr("资源仓库"), _QStr("无法查看"));
-	//	}
-	//}
+	if (QWidget* pTargetWidget = widgetData(clickedItem)) {
+		CListInfoWnd* pInfo = new CListInfoWnd(window());
+		pInfo->setWindowTitle(objectString(pTargetWidget));
+
+		QStyleOption option;
+		option.initFrom(pTargetWidget);
+		QStringList arrState;
+		for (int i = 0; i < queryEnumCount<QStyle::StateFlag>(); i++)
+		{
+			if (option.state.testFlag(queryEnumValue<QStyle::StateFlag>(i)))
+			{
+				arrState.append(queryEnumName<QStyle::StateFlag>(i));
+			}
+		}
+		pInfo->AddAttribute("QStyle::StateFlag", arrState.join(" | "));
+
+		QStringList arrAttribute;
+		for (int i = 0; i < Qt::AA_AttributeCount; i++)
+		{
+			if (pTargetWidget->testAttribute((Qt::WidgetAttribute)i))
+			{
+				arrAttribute.append(queryEnumName<Qt::WidgetAttribute>((Qt::WidgetAttribute)i));
+			}
+		}
+		pInfo->AddAttribute("WidgetAttribute", arrAttribute.join(" | "));
+
+		QStringList arrWindowType;
+		for (int i = 0; i < queryEnumCount<Qt::WindowType>(); ++i)
+		{
+			if (pTargetWidget->windowFlags().testFlag(queryEnumValue<Qt::WindowType>(i)))
+			{
+				arrWindowType.append(queryEnumName<Qt::WindowType>(i));
+			}
+		}
+		pInfo->AddAttribute("WindowType", arrWindowType.join(" | "));
+
+		QStringList arrUserProperty;
+		for (int i = 0; i < pTargetWidget->metaObject()->propertyCount(); i++)
+		{
+			QMetaProperty property = pTargetWidget->metaObject()->property(i);
+		}
+
+		auto button = dynamic_cast<QAbstractButton*>(pTargetWidget);
+		if (button) {
+			pInfo->AddAttribute(_QStr("抽象按钮类"), button->isCheckable() ? _QStr("可勾选") : _QStr("不可勾选"));
+			pInfo->AddAttribute(_QStr("抽象按钮类"), button->isChecked() ? _QStr("已勾选") : _QStr("未勾选"));
+			pInfo->AddAttribute(_QStr("抽象按钮类"), button->group() ? _QStr("已分组") : _QStr("未分组"));
+		}
+		pInfo->ShowOnTop();
+	}
+
 	return true;
 }
 
@@ -453,7 +413,7 @@ bool CWidgetSpyTree::ShowEventTrace(const QPoint& pos)
 		QWidget* pTargetWidget = widgetData(clickedItem);
 		QObject* pTarget = widgetData(clickedItem) ? widgetData(clickedItem) : To<QObject>(graphicsData(clickedItem));
 		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd(window());
-		pEventTraceWnd->setWindowTitle(ObjectString(pTarget));
+		pEventTraceWnd->setWindowTitle(objectString(pTarget));
 		pEventTraceWnd->MonitorWidget(pTarget);
 		pEventTraceWnd->ShowOnTop();
 	}
@@ -480,7 +440,7 @@ bool CWidgetSpyTree::ShowEventTraceAll(const QPoint& pos)
 	if (clickedItem) {
 		QObject* pTarget = widgetData(clickedItem) ? widgetData(clickedItem) : To<QObject>(graphicsData(clickedItem));
 		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd(window());
-		pEventTraceWnd->setWindowTitle(ObjectString(pTarget)+"[All]");
+		pEventTraceWnd->setWindowTitle(objectString(pTarget)+"[All]");
 		travelTreeItem(clickedItem, [=](QTreeWidgetItem* pItem) {
 			QObject* pTarget = widgetData(pItem) ? widgetData(pItem) : To<QObject>(graphicsData(pItem));
 			pEventTraceWnd->MonitorWidget(pTarget);
@@ -507,7 +467,7 @@ bool CWidgetSpyTree::ShowStyleEdit(const QPoint& pos)
 	if (clickedItem) {
 		QWidget* pTargetWidget = widgetData(clickedItem);
 		CStyleEditWnd* pEditStyleWnd = new CStyleEditWnd(window());
-		pEditStyleWnd->setWindowTitle(ObjectString(pTargetWidget));
+		pEditStyleWnd->setWindowTitle(objectString(pTargetWidget));
 		pEditStyleWnd->EditWidgetStyle(pTargetWidget);
 		pEditStyleWnd->ShowOnTop();
 	}
@@ -677,7 +637,7 @@ bool CLayoutTree::setTreeTarget(QObject* target)
 
 bool CLayoutTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode)
 {
-	parentNode->setText(0, ObjectString(parent));
+	parentNode->setText(0, objectString(parent));
 	parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
 
 	QLayout* layout = parent->layout();
@@ -695,7 +655,7 @@ bool CLayoutTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode)
 Q_DECLARE_METATYPE(QSpacerItem*);
 bool CLayoutTree::AddSubSpyNode(QLayout* layout, QTreeWidgetItem* parentNode)
 {
-	parentNode->setText(0, ObjectString(layout));
+	parentNode->setText(0, objectString(layout));
 	parentNode->setData(0, Qt::UserRole, QVariant::fromValue(layout));
 
 	int nCount = layout->count();
@@ -738,7 +698,7 @@ bool CObjectTree::setTreeTarget(QObject* target)
 
 bool CObjectTree::AddSubSpyNode(QObject* parent, QTreeWidgetItem* parentNode)
 {
-	parentNode->setText(0, ObjectString(parent));
+	parentNode->setText(0, objectString(parent));
 	parentNode->setData(0, Qt::UserRole, QVariant::fromValue(parent));
 
 	for(auto child : parent->children())

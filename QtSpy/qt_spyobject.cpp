@@ -146,7 +146,15 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 			if(EScreenMouseAction::SearchWidget == m_eCursorAction ||
 				EScreenMouseAction::SpyTarget == m_eCursorAction)
 			{
-				CSpyIndicatorWnd::showWnd(ScreenRect(widgetAt((dynamic_cast<QMouseEvent*>(event))->globalPos())));
+				QPoint ptGlobal = (dynamic_cast<QMouseEvent*>(event))->globalPos();
+				if (QWidget* pWidget = widgetAt(ptGlobal))
+				{
+					CSpyIndicatorWnd::showWnd(ScreenRect(pWidget));
+				}
+				else if(QGraphicsItem* pItem = graphicsItemAt(ptGlobal))
+				{
+					CSpyIndicatorWnd::showWnd(ScreenRect(pItem));
+				}
 				return true;
 			}
 			break;
@@ -171,12 +179,17 @@ bool CQtSpyObject::eventFilter(QObject* watched, QEvent* event)
 			{
 				case EScreenMouseAction::SearchWidget:
 				{
-					QWidget* pTarget = widgetAt(ptMouse);
+					void* pTarget = widgetAt(ptMouse);
+					if (nullptr == pTarget)
+					{
+						pTarget = graphicsItemAt(ptMouse);
+					}
 					if (m_mapWidgetNode.contains(pTarget))
 					{
 						m_pMainWindow->tree()->setCurrentItem(m_mapWidgetNode[pTarget]);
 						m_mapWidgetNode[pTarget]->setExpanded(true);
 					}
+
 					break;
 				}
 				case EScreenMouseAction::SpyTarget:
@@ -221,6 +234,12 @@ CQtSpyObject::~CQtSpyObject()
 {
 	
 }
+
+int CQtSpyObject::currentItemCount()
+{
+	return m_mapWidgetNode.size();
+}
+
 extern bool s_bAutoCreate;
 bool CQtSpyObject::initToolWindow()
 {
@@ -272,19 +291,6 @@ bool CQtSpyObject::initToolWindow()
 		});
 	menuDebug->addAction(actionMem);
 
-
-	QMenu* menuResource = new QMenu(_QStr("资源"));
-	QAction* menuResourceManage = menuResource->addAction("管理");
-	QObject::connect(menuResourceManage, &QAction::triggered, []() {
-		//CResourceManageWnd dlg;
-		//dlg.exec();
-		});
-	QAction* menuLookup = menuResource->addAction("查看");
-	QObject::connect(menuLookup, &QAction::triggered, []() {
-		//CResourceCheckWnd dlg;
-		//dlg.exec();
-		});
-
 	QMenu* menuColor = new QMenu(_QStr("颜色"));
 	QAction* menuScreenColor = menuColor->addAction("取色");
 	QObject::connect(menuScreenColor, &QAction::triggered, [&]() {
@@ -310,29 +316,7 @@ bool CQtSpyObject::initToolWindow()
 			QApplication::setStyle(QStyleFactory::create(strStyleName));
 			});
 	}
-	// 暂时屏蔽 skria
-	//QMenu* menuSimulateDPI = menuSetting->addMenu("模拟DPI");
-	//QObject::connect(menuSimulateDPI->addAction("重置系统值"), &QAction::triggered, []() {
-	//	QScreen* screen = QGuiApplication::primaryScreen();
-	//	if (screen) {
-	//		GetCoreInst().uilSetDPI(screen->logicalDotsPerInch());
-	//	}
-	//	});
-	//QObject::connect(menuSimulateDPI->addAction("96 100%"), &QAction::triggered, []() {
-	//	GetCoreInst().uilSetDPI(96);
-	//	});
-	//QObject::connect(menuSimulateDPI->addAction("120 125%"), &QAction::triggered, []() {
-	//	GetCoreInst().uilSetDPI(120);
-	//	});
-	//QObject::connect(menuSimulateDPI->addAction("144 150%"), &QAction::triggered, []() {
-	//	GetCoreInst().uilSetDPI(144);
-	//	});
-	//QObject::connect(menuSimulateDPI->addAction("168 175%"), &QAction::triggered, []() {
-	//	GetCoreInst().uilSetDPI(168);
-	//	});
-	//QObject::connect(menuSimulateDPI->addAction("192 200%"), &QAction::triggered, []() {
-	//	GetCoreInst().uilSetDPI(192);
-	//	});
+
 	menuBar->addAction(actionSpyTarget);
 	menuBar->addAction(actionReload);
 	menuBar->addAction(actionNameSearch);
@@ -340,7 +324,6 @@ bool CQtSpyObject::initToolWindow()
 	menuBar->addAction(actionCursorLocate);
 	menuBar->addMenu(menuSystem);
 	menuBar->addMenu(menuDebug);
-	menuBar->addMenu(menuResource);
 	menuBar->addMenu(menuColor);
 	menuBar->addMenu(menuSetting);
 	m_pMainWindow->setMenuBar(menuBar);

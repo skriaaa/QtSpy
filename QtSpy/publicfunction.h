@@ -23,7 +23,8 @@ QString objectClass(QObject* object);
 
 QString objectName(QObject* object);
 
-QString ObjectString(QObject* pWidget);
+QString objectString(QObject* pObject);
+QString objectString(QGraphicsItem* pItem);
 
 QString styleSheet(QWidget* widget);
 

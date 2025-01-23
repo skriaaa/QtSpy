@@ -125,7 +125,8 @@ QRect ScreenRect(QGraphicsItem* pItem)
 	}
 
 	auto geo = pItem->sceneBoundingRect();
-	auto lt = pItem->scene()->views().front()->mapToGlobal(QPoint(geo.left(), geo.top()));
+	auto view = pItem->scene()->views().front();
+	auto lt = view->mapToGlobal(view->mapFromScene(QPoint(geo.left(), geo.top())));
 	return QRect(lt, QSize(geo.width(), geo.height()));
 }
 
@@ -150,7 +151,7 @@ QString pointerToHex(const void* pointer) {
 	return "0x" + QString::number((uintptr_t)pointer, 16);
 }
 
-QString ObjectString(QObject* object)
+QString objectString(QObject* object)
 {
 	if (object == nullptr)
 		return "";
@@ -180,28 +181,42 @@ QString ObjectString(QObject* object)
 		}
 		strText += QString(" | %1 | %2").arg(object->objectName()).arg(pointerToHex(object));
 	}
-	else if (OTo<QGraphicsItem>(object))
-	{
-		//strText = "graphicsItem";
-		strText = QString("%1=%2").arg("graphicsItem").arg(pointerToHex(object));
-	}
 	else if(OTo<QLayout>(object))
 	{
 		strText += QString(" | %1 | %2").arg(object->objectName()).arg(pointerToHex(object));
 	}
 
 	QString strItemInfo = QString("%1(%2)").arg(objectClass(object)).arg(strText);
-	if (OTo<QWidget>(object) && !OTo<QWidget>(object)->isVisible()
-		|| OTo<QGraphicsItem>(object) && !OTo<QGraphicsItem>(object)->isVisible())
+	if (OTo<QWidget>(object) && !OTo<QWidget>(object)->isVisible())
 	{
 		strItemInfo += "[hide]";
 	}
-	if (OTo<QWidget>(object) && !OTo<QWidget>(object)->isEnabled()
-	|| OTo<QGraphicsItem>(object) && !OTo<QGraphicsItem>(object)->isEnabled())
+
+	if (OTo<QWidget>(object) && !OTo<QWidget>(object)->isEnabled())
 	{
 		strItemInfo += "[disabled]";
 	}
 
+	return strItemInfo;
+}
+
+QString objectString(QGraphicsItem* pItem)
+{
+	if (nullptr == pItem)
+	{
+		return "";
+	}
+
+	QString strText = QString("%1 | %2").arg("graphicsItem").arg(pointerToHex(pItem));
+	QString strItemInfo = QString("%1(%2)").arg(objectClass(To<QObject>(pItem))).arg(strText);
+	if(!pItem->isVisible())
+	{
+		strItemInfo += "[hide]";
+	}
+	if(!pItem->isEnabled())
+	{
+		strItemInfo += "[disabled]";
+	}
 	return strItemInfo;
 }
 
