@@ -60,7 +60,7 @@ public:
 	CLayoutTree(QWidget* parent = nullptr);
 	virtual bool setTreeTarget(QObject* target) override;
 	bool AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode);
-	bool AddSubSpyNode(QLayout* parent, QTreeWidgetItem* parentNode);
+	bool AddSubSpyNode(QLayout* parent, QTreeWidgetItem* parentNode, QWidget* pWidget = nullptr);
 };
 
 class CObjectTree : public CWidgetSpyTree

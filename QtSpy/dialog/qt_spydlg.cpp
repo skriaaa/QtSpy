@@ -168,10 +168,10 @@ CMoveOrScaleWidgetWnd::CMoveOrScaleWidgetWnd(QWidget* parent /*= nullptr*/) : CX
 		}
 		});
 	auto layout2 = new QHBoxLayout();
-	auto btnScaleUp = new QPushButton("缩放上边界");
-	auto btnScaleDown = new QPushButton("缩放下边界");
-	auto btnScaleLeft = new QPushButton("缩放左边界");
-	auto btnScaleRight = new QPushButton("缩放右边界");
+	auto btnScaleUp = new QPushButton("移动上边界");
+	auto btnScaleDown = new QPushButton("移动下边界");
+	auto btnScaleLeft = new QPushButton("移动左边界");
+	auto btnScaleRight = new QPushButton("移动右边界");
 	layout2->addWidget(m_pEditScaleStep);
 	layout2->addWidget(btnScaleUp);
 	layout2->addWidget(btnScaleDown);
@@ -186,7 +186,7 @@ CMoveOrScaleWidgetWnd::CMoveOrScaleWidgetWnd(QWidget* parent /*= nullptr*/) : CX
 	QObject::connect(btnScaleUp, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
 			QRect rc = m_pTargetWidget->geometry();
-			rc.adjust(0, -m_nScaleStep, 0, 0);
+			rc.adjust(0, m_nScaleStep, 0, 0);
 			m_pTargetWidget->setGeometry(rc);
 		}
 		});
@@ -200,7 +200,7 @@ CMoveOrScaleWidgetWnd::CMoveOrScaleWidgetWnd(QWidget* parent /*= nullptr*/) : CX
 	QObject::connect(btnScaleLeft, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
 			QRect rc = m_pTargetWidget->geometry();
-			rc.adjust(-1 * m_nScaleStep, 0, 0, 0);
+			rc.adjust(m_nScaleStep, 0, 0, 0);
 			m_pTargetWidget->setGeometry(rc);
 		}
 		});
@@ -594,6 +594,11 @@ bool CLogTraceWnd::AddInfo(QString strInfo)
 
 	strInfo = QString("%1 | %2 | %3").arg(m_nCount++, 4, 10, QLatin1Char('0')).arg(QTime::currentTime().toString("hh:mm:ss::zzz")).arg(strInfo);
 	CLogRecorder::instance().addLog(strInfo);
+	if(m_bOnlyLog)
+	{
+		return true;
+	}
+
 	m_listModel.insertRow(m_listModel.rowCount());
 	m_listModel.setData(m_listModel.index(m_listModel.rowCount() - 1), strInfo);
 	if (m_bTrace)
@@ -624,6 +629,13 @@ void CLogTraceWnd::initWidgets()
 		auto btnTrace = new QPushButton("trace");
 		QObject::connect(btnTrace, &QPushButton::clicked, [&]() { m_bTrace = true; });
 		control_1->addWidget(btnTrace);
+		auto btnOnlyLog = new QPushButton("log");
+		QObject::connect(btnOnlyLog, &QPushButton::clicked, [=]() { 
+			m_bOnlyLog = !m_bOnlyLog; 
+			btnOnlyLog->setText(m_bOnlyLog ? "onlyLog" : "showList"); 
+		});
+
+		control_1->addWidget(btnOnlyLog);
 	}
 
 
@@ -790,7 +802,6 @@ QString CEventTraceWnd::EventInfo(T* pTarget, QEvent* event)
 			strInfo += strPos;
 			break;
 		}
-
 		default:
 			break;
 		}

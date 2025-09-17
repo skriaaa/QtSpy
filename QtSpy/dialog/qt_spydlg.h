@@ -150,6 +150,7 @@ public:
 	QStringList m_arrStrNo;
 	int		m_nCount{ 0 };
 	bool	m_bTrace{ true };
+	bool	m_bOnlyLog{ false };
 };
 
 class CEventTraceWnd;

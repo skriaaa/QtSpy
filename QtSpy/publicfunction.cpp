@@ -108,13 +108,13 @@ QRect MapFromGlobal(QWidget* pWidget, QRect rc)
 	return QRect(MapFromGlobal(pWidget, rc.topLeft()), MapFromGlobal(pWidget, rc.bottomRight()));
 }
 
-QRect ScreenRect(QWidget* pWidget)
+QRect ScreenRect(QWidget* pWidget, QRect rc)
 {
-	if(nullptr == pWidget)
+	if (nullptr == pWidget)
 	{
 		return QRect();
 	}
-	return MapToGlobal(pWidget, pWidget->rect());
+	return MapToGlobal(pWidget, rc.isEmpty() ? pWidget->rect() : rc);
 }
 
 QRect ScreenRect(QGraphicsItem* pItem)
@@ -163,8 +163,8 @@ QString objectString(QObject* object)
 			auto typeWidget = dynamic_cast<QDialog*>(object);
 			strText = typeWidget->windowTitle();
 		}
-		else if (dynamic_cast<QPushButton*>(object)) {
-			auto typeWidget = dynamic_cast<QPushButton*>(object);
+		else if (dynamic_cast<QAbstractButton*>(object)) {
+			auto typeWidget = dynamic_cast<QAbstractButton*>(object);
 			strText = typeWidget->text();
 		}
 		else if (dynamic_cast<QLineEdit*>(object)) {

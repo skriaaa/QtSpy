@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.5)
 
 # cmake custom utility function
 include(utils.cmake)
@@ -13,7 +13,7 @@ SetGeneralConfiguration()
 add_definitions(-DQTSPY_UTILS)
 
 # 输出路径
-set(targetPath ${PROJECT_SOURCE_DIR})
+set(targetPath ${PROJECT_SOURCE_DIR}/bin)
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG ${targetPath})
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE ${targetPath})
@@ -29,7 +29,7 @@ findSourceFile(
 	)
 
 # build project
-buildProject(STATIC fileList)
+buildProject(SHARED fileList)
 
 # link Qt
 linkQtModules(

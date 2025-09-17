@@ -49,7 +49,7 @@
 #include "dialog/ObjectTree.h"
 #include "qtspy.h"
 const char* MAIN_WINDOW = "QtSpy_MainWindow";
-CSpyMainWindow::CSpyMainWindow(QWidget* parent):CXDialog(parent)
+CSpyMainWindow::CSpyMainWindow(QWidget* parent) :CXDialog(parent)
 {
 	setLayout(new QVBoxLayout());
 	layout()->setContentsMargins(0, 0, 0, 0);
@@ -59,6 +59,26 @@ CSpyMainWindow::CSpyMainWindow(QWidget* parent):CXDialog(parent)
 #ifdef Q_OS_MAC
 	setNativeMenuBar(false);
 #endif
+
+	QStringList strViewStyle = 
+	{ 
+		"CSpyMainWindow QAbstractView{ background: white; color: rgba(15,15,15,255); border:none; }",
+		"QAbstractView::item{outline:none; border:none}",
+		"QAbstractView::item:hover{background-color: rgba(205, 232, 255, 255);",
+		"QAbstractView::item:selected{background-color: rgba(217, 217, 217, 255);"
+	};
+	QString strMenuBar = "CSpyMainWindow QMenuBar{ background: white; color: rgba(15,15,15,255); }";
+	QStringList strMenu = 
+	{
+		"CSpyMainWindow QMenu{ background: rgba(74,76,81,255); color: rgba(15,15,15,255); font:10pt Microsoft YaHei;};",
+		"QMenu::item {color:rgba(224, 224, 224, 255);}",
+		"QMenu::item:hover{background-color:rgba(192,192,192,255);color:rgba(66,66,66,255);}",
+		"QMenu::item:selected{background-color:rgba(192,192,192,255);color:rgba(66,66,66,255);}",
+		"QMenu::item:disabled{color:gray;}",
+		"QMenu::item:selected:disabled{color:gray;}"
+	};
+	QStringList arrStyle = { strViewStyle.join("\n CSpyMainWindow"), strMenuBar, strMenu.join("\n CSpyMainWindow ") };
+	setStyleSheet(arrStyle.join('\n'));
 }
 
 CQtSpyObject* CSpyMainWindow::spyObject()
@@ -244,7 +264,6 @@ extern bool s_bAutoCreate;
 bool CQtSpyObject::initToolWindow()
 {
 	QMenuBar* menuBar = new QMenuBar();
-	menuBar->setStyleSheet("QMenuBar{ background: white; color: rgba(15,15,15,255); }");
 	QAction* actionSpyTarget = new QAction(_QStr("监控"));
 	QObject::connect(actionSpyTarget, &QAction::triggered, [&]() {
 		SpyTargetTree();
@@ -322,10 +341,10 @@ bool CQtSpyObject::initToolWindow()
 	menuBar->addAction(actionNameSearch);
 	menuBar->addAction(actionCursorSearch);
 	menuBar->addAction(actionCursorLocate);
+	menuBar->addMenu(menuSetting);
 	menuBar->addMenu(menuSystem);
 	menuBar->addMenu(menuDebug);
 	menuBar->addMenu(menuColor);
-	menuBar->addMenu(menuSetting);
 	m_pMainWindow->setMenuBar(menuBar);
 
 

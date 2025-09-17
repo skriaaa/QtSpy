@@ -1,11 +1,22 @@
-编译：
+## 一、编译：
 
 1、在utils.cmake里配置Qt版本和路径
 2、build目录，执行   windows：build.bat/built_64.bat； linux：linux_build.sh
 3、windows下生成的是vs的工程，需要编一下。linux下的执行完就编译了
 
 
-引入(静态库)：
+## 二、引入(动态库):
+
+1、把生成的dll（bin目录下）复制到环境里
+
+2、调起窗口
+```c++
+#include <QLibrary>
+auto func = (void(*)())QLibrary::resolve("QtSpy.dll", "initQtSpy");
+if (func) func();
+```
+
+## 三、引入(静态库)：
 
 1、在Qt工程.pro中添加
 ```c++
@@ -25,3 +36,4 @@ QtSpy::initSpy();
 
 问题：
 运行时如果找不到Qtxxx.lib 就把qt的路径（路径一直配到bin）配置到系统环境变量中
+

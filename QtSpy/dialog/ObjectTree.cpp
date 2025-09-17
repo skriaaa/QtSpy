@@ -318,6 +318,12 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 			pInfo->setWindowTitle("QSpacerItem");
 			pInfo->AddAttribute("class name", "QSpacerItem");
 			pInfo->AddAttribute("geometry", QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
+			QWidget* pParentWidget = clickedItem->data(0, Qt::UserRole + 1).value<QWidget*>();
+			if (pParentWidget)
+			{
+				auto geoScreen = ScreenRect(pParentWidget, geo);
+				pInfo->AddAttribute(_QStr("screen geometry"), QString("(%1,%2,%3,%4)").arg(geoScreen.left()).arg(geoScreen.top()).arg(geoScreen.right()).arg(geoScreen.bottom()));
+			}
 			pInfo->AddAttribute("geometry size", QString("(%1,%2)").arg(geo.width()).arg(geo.height()));
 			pInfo->AddAttribute("maxsize", QString("(%1,%2)").arg(pItem->maximumSize().width()).arg(pItem->maximumSize().height()));
 			pInfo->AddAttribute("minsize", QString("(%1,%2)").arg(pItem->minimumSize().width()).arg(pItem->minimumSize().width()));
@@ -330,10 +336,16 @@ bool CWidgetSpyTree::ShowWidgetInfo(const QPoint& pos)
 		{
 			auto geo = pLayout->geometry();
 			CListInfoWnd* pInfo = new CListInfoWnd(window());
-			pInfo->setWindowTitle("QSpacerItem");
+			pInfo->setWindowTitle("QLayout");
 			pInfo->AddAttribute("class name", objectString(pLayout));
 			pInfo->AddAttribute("object name", pLayout->objectName());
 			pInfo->AddAttribute("geometry", QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
+			QWidget* pParentWidget = clickedItem->data(0, Qt::UserRole + 1).value<QWidget*>();
+			if(pParentWidget)
+			{
+				auto geoScreen = ScreenRect(pParentWidget, geo);
+				pInfo->AddAttribute(_QStr("screen geometry"), QString("(%1,%2,%3,%4)").arg(geoScreen.left()).arg(geoScreen.top()).arg(geoScreen.right()).arg(geoScreen.bottom()));
+			}
 			pInfo->AddAttribute("geometry size", QString("(%1,%2)").arg(geo.width()).arg(geo.height()));
 			pInfo->AddAttribute("sizeHint", QString("(%1,%2)").arg(pLayout->totalSizeHint().width()).arg(pLayout->totalSizeHint().height()));
 			pInfo->AddAttribute("maxSize", QString("(%1,%2)").arg(pLayout->totalMaximumSize().width()).arg(pLayout->totalMaximumSize().height()));
@@ -528,6 +540,7 @@ void CWidgetSpyTree::showLayout(const QPoint& pos)
 	QTreeWidgetItem* clickedItem = itemAt(mapFromGlobal(pos));
 	if (QWidget* pTargetWidget = widgetData(clickedItem)) {
 		QDialog* dlg = new QDialog(window());
+		dlg->setWindowTitle("布局信息");
 		dlg->setLayout(new QHBoxLayout());
 		CLayoutTree* tree = new CLayoutTree();
 		tree->setTreeTarget(pTargetWidget);
@@ -535,9 +548,10 @@ void CWidgetSpyTree::showLayout(const QPoint& pos)
 		dlg->show();
 	}
 
-	if(QLayout* layout = itemData<QLayout>(clickedItem))
+	if (QLayout* layout = itemData<QLayout>(clickedItem))
 	{
 		QDialog* dlg = new QDialog(window());
+		dlg->setWindowTitle("布局信息");
 		CLayoutTree* tree = new CLayoutTree();
 		tree->setTreeTarget(layout);
 		dlg->layout()->addWidget(tree);
@@ -577,11 +591,20 @@ QRect CWidgetSpyTree::itemArea(QTreeWidgetItem* pItem)
 	else if (QLayout* pLayout = itemData<QLayout>(pItem))
 	{
 		rcArea = pLayout->geometry();
-		rcArea.moveCenter(pLayout->parentWidget()->mapToGlobal(rcArea.center()));
+		QWidget* pParentWidget = pItem->data(0, Qt::UserRole + 1).value<QWidget*>();
+		if (pParentWidget)
+		{
+			rcArea = ScreenRect(pParentWidget, rcArea);
+		}
 	}
 	else if (QSpacerItem* pSpacerItem = itemData<QSpacerItem>(pItem))
 	{
 		rcArea = pSpacerItem->geometry();
+		QWidget* pParentWidget = pItem->data(0, Qt::UserRole + 1).value<QWidget*>();
+		if (pParentWidget)
+		{
+			rcArea = ScreenRect(pParentWidget, rcArea);
+		}
 	}
 
 	if (rcArea.isEmpty())
@@ -648,15 +671,16 @@ bool CLayoutTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode)
 
 	QTreeWidgetItem* treeNode = new QTreeWidgetItem();
 	parentNode->addChild(treeNode);
-	AddSubSpyNode(layout, treeNode);
+	AddSubSpyNode(layout, treeNode, parent);
 	return true;
 }
 
 Q_DECLARE_METATYPE(QSpacerItem*);
-bool CLayoutTree::AddSubSpyNode(QLayout* layout, QTreeWidgetItem* parentNode)
+bool CLayoutTree::AddSubSpyNode(QLayout* layout, QTreeWidgetItem* parentNode, QWidget* pWidget)
 {
 	parentNode->setText(0, objectString(layout));
 	parentNode->setData(0, Qt::UserRole, QVariant::fromValue(layout));
+	parentNode->setData(0, Qt::UserRole + 1, QVariant::fromValue(pWidget));
 
 	int nCount = layout->count();
 	for (int nIndex = 0; nIndex < nCount; nIndex++)
@@ -672,12 +696,13 @@ bool CLayoutTree::AddSubSpyNode(QLayout* layout, QTreeWidgetItem* parentNode)
 		if (pItem->layout())
 		{
 			treeNode->setText(0, pItem->layout()->metaObject()->className());
-			AddSubSpyNode(pItem->layout(), treeNode);
+			AddSubSpyNode(pItem->layout(), treeNode, pWidget);
 		}
 		if (pItem->spacerItem())
 		{
 			treeNode->setText(0, "QSpacerItem");
 			treeNode->setData(0, Qt::UserRole, QVariant::fromValue(pItem->spacerItem()));
+			treeNode->setData(0, Qt::UserRole + 1, QVariant::fromValue(pWidget));
 		}
 	}
 	return true;

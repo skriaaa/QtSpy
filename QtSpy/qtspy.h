@@ -1,7 +1,6 @@
 ﻿#pragma once
-
 namespace QtSpy
 {
     void initSpy();
-    void initSpy(void* parent);
+    void initSpyWithParent(void* parent);
 };

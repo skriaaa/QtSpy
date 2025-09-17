@@ -1,9 +1,9 @@
 ﻿#pragma once
 #include <QMetaEnum>
+#include <QRect>
 class QPoint;
 class QWidget;
 class QDialog;
-class QRect;
 class QString;
 class QGraphicsItem;
 class QObject;
@@ -16,7 +16,7 @@ QRect MapToGlobal(QWidget* pWidget, QRect rc);
 
 QRect MapFromGlobal(QWidget* pWidget, QRect rc);
 
-QRect ScreenRect(QWidget* pWidget);
+QRect ScreenRect(QWidget* pWidget, QRect rc = QRect());
 QRect ScreenRect(QGraphicsItem* pItem);
 
 QString objectClass(QObject* object);
