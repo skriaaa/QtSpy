@@ -629,7 +629,7 @@ void CLogTraceWnd::initWidgets()
 		auto btnTrace = new QPushButton("trace");
 		QObject::connect(btnTrace, &QPushButton::clicked, [&]() { m_bTrace = true; });
 		control_1->addWidget(btnTrace);
-		auto btnOnlyLog = new QPushButton("log");
+		auto btnOnlyLog = new QPushButton("showList");
 		QObject::connect(btnOnlyLog, &QPushButton::clicked, [=]() { 
 			m_bOnlyLog = !m_bOnlyLog; 
 			btnOnlyLog->setText(m_bOnlyLog ? "onlyLog" : "showList"); 

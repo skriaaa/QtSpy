@@ -5,9 +5,9 @@
 bool s_bAutoCreate = false;
 
 #ifdef QT_SPY_LIB
-#define QT_SPY_API __declspec(dllexport)
+#define QT_SPY_API Q_DECL_EXPORT
 #else
-#define QT_SPY_API __declspec(dllimport)
+#define QT_SPY_API Q_DECL_IMPORT
 #endif
 
 
