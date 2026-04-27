@@ -119,8 +119,8 @@ function(linkQtModules)
 	
 	foreach(moduleName ${MY_ARGS_MODULES})
 		find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${moduleName})
-		target_link_libraries(${PROJECT_NAME} Qt${QT_VERSION_MAJOR}::${moduleName})
-		target_include_directories(${PROJECT_NAME} PUBLIC ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# 常规头文件
+		target_link_libraries(${PROJECT_NAME} PRIVATE Qt${QT_VERSION_MAJOR}::${moduleName})
+		target_include_directories(${PROJECT_NAME} PRIVATE ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# 常规头文件
 		message("linkQtModule: Qt${QT_VERSION_MAJOR}::${moduleName}")
 	endforeach()
 
@@ -130,7 +130,7 @@ function(linkQtModules)
 		set(headerpath "${curPath}/${QT_VERSION}")
 		if(EXISTS ${headerpath})
 		message("include Qt Private headerpath : ${headerpath}")
-		target_include_directories(${PROJECT_NAME} PUBLIC ${headerpath})
+		target_include_directories(${PROJECT_NAME} PRIVATE ${headerpath})
 		#addPathToSysVar(${headerpath} QT_PRIVATE_INCLUDE_PATH)
 		endif()
 	endforeach()
@@ -163,12 +163,15 @@ function(findSourceFile)
 	endforeach()
 	
 	file(GLOB_RECURSE HeaderList ${PROJECT_SOURCE_DIR}/*.h ${PROJECT_SOURCE_DIR}/*.hpp)
+	file(GLOB_RECURSE ResourceList ${PROJECT_SOURCE_DIR}/*.qrc)
 	list(LENGTH HeaderList length) 
 	message("Project All HeaderFileCount : ${length}")	
 	list(LENGTH SourceList length) 
 	message("Project All SourceFileCount : ${length}")
+	list(LENGTH ResourceList length) 
+	message("Project All ResourceFileCount : ${length}")
 
-	list(APPEND arrFile ${SourceList} ${HeaderList})
+	list(APPEND arrFile ${SourceList} ${HeaderList} ${ResourceList})
 	set(${MY_ARGS_FILEARRAYNAME} ${arrFile} PARENT_SCOPE)
 	
 	message("\n*****************collect files end*****************\n")

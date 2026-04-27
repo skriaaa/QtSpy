@@ -1,4 +1,4 @@
-﻿#include "LogRecorder.h"
+#include "LogRecorder.h"
 #include "stdarg.h"
 #include <atomic>
 #include <QFile>
@@ -27,7 +27,7 @@ public:
 	virtual void run() override
 	{
 		QFile file(QCoreApplication::applicationDirPath() + "/" + QDate::currentDate().toString("yyyyMMdd") + ".log");
-		if (false == file.open(QIODevice::Append))
+		if (false == file.open(QIODevice::Append | QIODevice::Text))
 		{
 			return;
 		}
@@ -36,6 +36,7 @@ public:
 		{
 			QString strLog = popLog();
 			QTextStream stream(&file);
+			stream.setCodec("UTF-8");
 			do
 			{
 				if (strLog.isEmpty())

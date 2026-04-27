@@ -42,11 +42,19 @@
 #include "proxyStyle/ProxyStyle.h"
 #include "StyleEditDlg.h"
 #include "utils/LogRecorder.h"
-#include "qt_spyobject.h"
+#include "SpyMainWindow.h"
 #include "ObjectTree.h"
 
+void CXDialog::showEvent(QShowEvent* event)
+{
+	if (styleSheet().isEmpty())
+	{
+		setStyleSheet(normalStyleSheet());
+	}
+}
+
 CSpyIndicatorWnd::CSpyIndicatorWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent),
-m_Timer(QTimer(this))
+m_Timer(QTimer(this)), m_nSpanPeriod(0)
 {
 	setAttribute(Qt::WA_DeleteOnClose);
 	setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -61,9 +69,9 @@ m_Timer(QTimer(this))
 		}
 		else
 		{
-			setWindowOpacity((float)m_nSpanPeriod / 30);
+			setWindowOpacity((float)m_nSpanPeriod / 60);
 			repaint();
-			m_nSpanPeriod--;
+			m_nSpanPeriod-=2;
 		}
 	});
 }
@@ -276,7 +284,7 @@ void CListInfoWnd::InitTableWidget()
 	this->layout()->addWidget(m_pTableWidget);
 
 	QStringList headers;
-	headers << _QStr("属性") << _QStr("值");
+	headers << "属性" << "值";
 	m_pTableWidget->setColumnCount(headers.size());
 	m_pTableWidget->setHorizontalHeaderLabels(headers);
 	m_pTableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
@@ -306,6 +314,7 @@ void CSignalSpyWnd::setTargetObject(QObject* target)
 
 void CSignalSpyWnd::ParseSignal(QObject* target)
 {
+	target->dumpObjectInfo();
 	int row = m_pSignalTable->rowCount();
 	//QObjectPrivate* sp = QObjectPrivate::get(target);
 	//{
@@ -317,7 +326,6 @@ void CSignalSpyWnd::ParseSignal(QObject* target)
 	//		QAtomicPointer<QObjectPrivate::Connection> curConnection = list.first;
 	//		QObject* obj = curConnection.loadRelaxed()->receiver.loadRelaxed();
 	//		QString str = obj->metaObject()->className();
-	//		int a = 0;
 	//	}
 	//}
 
@@ -366,8 +374,8 @@ void CSignalSpyWnd::initTableWidget()
 		table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 	};
 
-	fnSetTable(m_pSignalTable, { "信号", "槽", "接收对象" });
-	fnSetTable(m_pSlotTable, { "槽", "信号", "接收对象" });
+	fnSetTable(m_pSignalTable, { "信号", "槽", "receiver" });
+	fnSetTable(m_pSlotTable, { "槽", "信号", "sender" });
 }
 
 void CSignalSpyWnd::initContextMenu()
@@ -402,7 +410,7 @@ void CSignalSpyWnd::initContextMenu()
 					CSignalSpy* spy = new CSignalSpy(m_pTargetObject, *method);
 					spy->setTraceWnd(traceWnd());
 				}
-				traceWnd()->ShowOnTop();
+				traceWnd()->showOnTop();
 			}
 		}
 		if (acbk == acInspectAll)
@@ -415,7 +423,7 @@ void CSignalSpyWnd::initContextMenu()
 					item.second->setTraceWnd(traceWnd());
 				}
 			}
-			traceWnd()->ShowOnTop();
+			traceWnd()->showOnTop();
 		}
 	});
 }
@@ -495,7 +503,7 @@ CLogTraceWnd* CSignalSpyWnd::traceWnd()
 
 CStatusInfoWnd::CStatusInfoWnd(QWidget* parent) : CListInfoWnd(parent)
 {
-	setWindowTitle(_QStr("状态信息"));
+	setWindowTitle("状态信息");
 	UpdateStatusInfo();
 }
 
@@ -503,7 +511,7 @@ void CStatusInfoWnd::UpdateStatusInfo()
 {
 	ClearAll();
 	AddAttribute("当前控件数", QString::number(qApp->allWidgets().size()));
-	AddAttribute("页面控件数", QString::number(dynamic_cast<CSpyMainWindow*>(parentWidget())->spyObject()->currentItemCount()));
+	AddAttribute("页面控件数", QString::number(dynamic_cast<CSpyMainWindow*>(parentWidget())->currentItemCount()));
 }
 
 void CStatusInfoWnd::keyReleaseEvent(QKeyEvent* event)
@@ -771,7 +779,7 @@ QString CEventTraceWnd::EventInfo(T* pTarget, QEvent* event)
 	QString strTarget = " --- ";
 	strTarget += objectString(pTarget);
 	if (!event) {
-		return _QStr("event [NULL]") + strTarget;
+		return "event [NULL]" + strTarget;
 	}
 
 	QString strEventType = queryEnumName<QEvent::Type>(event->type());
@@ -810,9 +818,9 @@ QString CEventTraceWnd::EventInfo(T* pTarget, QEvent* event)
 	}
 
 	if (event->type() >= QEvent::User && event->type() < QEvent::MaxUser) {
-		return _QStr("event [user define]") + strTarget;
+		return "event [user define]" + strTarget;
 	}
-	return _QStr("event [unknow]") + strTarget;
+	return "event [unknow]" + strTarget;
 }
 
 CSignalSpyWnd::CSignalSpy::CSignalSpy(const QObject* obj, const QMetaMethod& signal) :QSignalSpy(obj, signal)
@@ -831,9 +839,8 @@ void CSignalSpyWnd::CSignalSpy::setTraceWnd(CLogTraceWnd* wnd)
 	m_TraceWnd = wnd;
 }
 
-CFindWnd::CFindWnd(CQtSpyObject* pSpyObject, QWidget* parent /*= nullptr*/):CXDialog(parent)
+CFindWnd::CFindWnd(CSpyMainWindow* parent /*= nullptr*/):CXDialog(parent)
 {
-	m_pSpyObject = pSpyObject;
 	initWidget();
 }
 
@@ -850,11 +857,11 @@ void CFindWnd::initWidget()
 	QLineEdit* pEdit = new QLineEdit();
 
 	QObject::connect(pBtnYes, &QPushButton::clicked, [this, pEdit]() {
-		m_arrTargetItem = m_pSpyObject->m_pMainWindow->tree()->findItems(pEdit->text(), Qt::MatchFlag::MatchContains | Qt::MatchRecursive);
+		m_arrTargetItem = dynamic_cast<CSpyMainWindow*>(parent())->tree()->findItems(pEdit->text(), Qt::MatchFlag::MatchContains | Qt::MatchRecursive);
 		if (!m_arrTargetItem.empty())
 		{
 			m_arrTargetItem.front()->setExpanded(true);
-			m_pSpyObject->m_pMainWindow->tree()->setCurrentItem(m_arrTargetItem.front());
+			dynamic_cast<CSpyMainWindow*>(parent())->tree()->setCurrentItem(m_arrTargetItem.front());
 		}
 	});
 	QObject::connect(pBtnNext, &QPushButton::clicked, [&]() {
@@ -862,7 +869,7 @@ void CFindWnd::initWidget()
 		{
 			m_nCurrentIndex++;
 			m_arrTargetItem[m_nCurrentIndex]->setExpanded(true);
-			m_pSpyObject->m_pMainWindow->tree()->setCurrentItem(m_arrTargetItem[m_nCurrentIndex]);
+			dynamic_cast<CSpyMainWindow*>(parent())->tree()->setCurrentItem(m_arrTargetItem[m_nCurrentIndex]);
 		}
 	});
 	QObject::connect(pBtnPrev, &QPushButton::clicked, [&]() {
@@ -870,7 +877,7 @@ void CFindWnd::initWidget()
 		{
 			m_nCurrentIndex--;
 			m_arrTargetItem[m_nCurrentIndex]->setExpanded(true);
-			m_pSpyObject->m_pMainWindow->tree()->setCurrentItem(m_arrTargetItem[m_nCurrentIndex]);
+			dynamic_cast<CSpyMainWindow*>(parent())->tree()->setCurrentItem(m_arrTargetItem[m_nCurrentIndex]);
 		}
 	});
 
@@ -882,8 +889,7 @@ void CFindWnd::initWidget()
 	pLayout->addWidget(pBtnPrev);
 
 	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowTitle(_QStr("查找"));
+	setWindowTitle("查找");
 	setLayout(new QVBoxLayout());
 	dynamic_cast<QVBoxLayout*>(layout())->addLayout(pLayout);
 }
-

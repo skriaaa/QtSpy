@@ -10,23 +10,25 @@
 #include <QGraphicsScene>
 #include <QGraphicsItem>
 #include <map>
-#define _QStr(str) (str)
 class QListView;
 class CXDialog : public QDialog {
 public:
 	CXDialog(QWidget* parent) : QDialog(parent) {
-
+		
 	}
-	void ShowOnTop(bool modal = false) {
-		if (modal) {
+	void showOnTop(bool bModal = false) {
+		if (bModal) 
+		{
 			exec();
 		}
-		else {
+		else 
+		{
 			setWindowFlags(windowFlags() | Qt::WindowStaysOnTopHint);
 			raise();
 			show();
 		}
 	}
+	virtual void showEvent(QShowEvent* event) override;
 };
 
 
@@ -210,15 +212,14 @@ protected:
 	bool m_bRunning = true;
 };
 
-class CQtSpyObject;
+class CSpyMainWindow;
 class CFindWnd : public CXDialog{
 public:
-	CFindWnd(CQtSpyObject* pSpyObject, QWidget* parent = nullptr);
+	CFindWnd(CSpyMainWindow* parent = nullptr);
 	~CFindWnd();
 protected:
 	void initWidget();
 protected:
-	CQtSpyObject* m_pSpyObject{ nullptr };
 	QList<QTreeWidgetItem*> m_arrTargetItem;
 	int m_nCurrentIndex{ 0 };
 };

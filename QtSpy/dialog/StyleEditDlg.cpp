@@ -45,8 +45,11 @@ void CStyleEditWnd::initWidgets()
 
 	QHBoxLayout* hLayout = new QHBoxLayout;
 	mainLayout->addLayout(hLayout);
+	hLayout->addStretch(1);
 	QPushButton* btnTips = new QPushButton("keys");
-	auto btnApply = new QPushButton("modify style");
+	btnTips->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
+	auto btnApply = new QPushButton("apply");
+	btnApply->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Preferred);
 	hLayout->addWidget(btnTips);
 	hLayout->addWidget(btnApply);
 

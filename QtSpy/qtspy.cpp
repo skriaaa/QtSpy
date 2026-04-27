@@ -1,59 +1,36 @@
-﻿#include "qtspy.h"
-#include "qt_spyobject.h"
+#include "qtspy.h"
+#include "SpyMainWindow.h"
 #include <QApplication>
-#include "publicfunction.h"
-bool s_bAutoCreate = false;
-
+#include "SpyWndManager.h"
 #ifdef QT_SPY_LIB
 #define QT_SPY_API Q_DECL_EXPORT
 #else
 #define QT_SPY_API Q_DECL_IMPORT
 #endif
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
+{
+	switch (ul_reason_for_call) {
+	case DLL_PROCESS_ATTACH:
+		QMetaObject::invokeMethod(QCoreApplication::instance(), QtSpy::initSpy, Qt::QueuedConnection);
+		return TRUE;
+	}
+	return FALSE;
+}
+#endif
 
 void QtSpy::initSpy()
 {
-	static CQtSpyObject object;
-	Q_UNUSED(object);
-
-	// 模态对话框自动弹出一个QtSpy子窗口
-	static QTimer* pTimer = nullptr;
-	if (nullptr == pTimer)
-	{
-		pTimer = new QTimer;
-		pTimer->setInterval(1000);
-		pTimer->callOnTimeout([]() {
-			if (!s_bAutoCreate)
-			{
-				return;
-			}
-
-			QWidget* pWidget = qApp->activeModalWidget();
-			if (nullptr == pWidget)
-			{
-				return;
-			}
-
-			if (OTo<CXDialog>(pWidget))
-			{
-				return;
-			}
-
-			if (nullptr != pWidget->findChild<CQtSpyObject*>("CQtSpyObject"))
-			{
-				return;
-			}
-
-			initSpyWithParent(pWidget);
-		});
-		pTimer->start();
-	}
+	CSpyWndManager* pWndManager = new CSpyWndManager(qApp);
+	Q_UNUSED(pWndManager);
 }
 
 void QtSpy::initSpyWithParent(void* parent)
 {
-	CQtSpyObject* pObject = new CQtSpyObject(static_cast<QWidget*>(parent));
-	Q_UNUSED(pObject);
+	CSpyMainWindow* pSpyWnd = new CSpyMainWindow(static_cast<QWidget*>(parent));
+	pSpyWnd->showOnTop();
 }
 
 

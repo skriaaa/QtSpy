@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "qt_spydlg.h"
 class QListView;
 class CMemoryMonitorDlg : public CXDialog
@@ -13,5 +13,6 @@ private:
 	int m_nTimerID = -1;
 	int m_nMemoryCount = 0;
 	bool m_bTrace = true;
+	bool m_bAttach = false;
 };
 

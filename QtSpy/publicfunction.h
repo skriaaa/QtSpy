@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <QMetaEnum>
 #include <QRect>
 class QPoint;
@@ -70,3 +70,5 @@ int queryEnumCount()
 {
 	return QMetaEnum::fromType<T>().keyCount();
 }
+
+QString normalStyleSheet();

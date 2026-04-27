@@ -10,6 +10,7 @@
 #include <QLineEdit>
 #include <QLayout>
 #include <QLabel>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QGraphicsView>
 #include <QGraphicsScene>
@@ -23,7 +24,6 @@ QPoint convertGlobalPointToWidget(QPoint ptGlobal, QWidget* pTargetWidget)
 	{
 		return ptGlobal;
 	}
-
 	QWidget* pWidget = pTargetWidget;
 	for (; nullptr != pWidget; pWidget = pWidget->parentWidget())
 	{
@@ -159,26 +159,31 @@ QString objectString(QObject* object)
 	QString strText;
 	if (OTo<QWidget>(object))
 	{
-		if (dynamic_cast<QDialog*>(object)) {
-			auto typeWidget = dynamic_cast<QDialog*>(object);
-			strText = typeWidget->windowTitle();
+		if (auto pWidget = OTo<QDialog>(object)) 
+		{
+			strText = pWidget->windowTitle();
 		}
-		else if (dynamic_cast<QAbstractButton*>(object)) {
-			auto typeWidget = dynamic_cast<QAbstractButton*>(object);
-			strText = typeWidget->text();
+		else if (auto pWidget = OTo<QAbstractButton>(object))
+		{
+			strText = pWidget->text();
 		}
-		else if (dynamic_cast<QLineEdit*>(object)) {
-			auto typeWidget = dynamic_cast<QLineEdit*>(object);
-			strText = typeWidget->text();
+		else if (auto pWidget = OTo<QLineEdit>(object))
+		{
+			strText = pWidget->text();
 		}
-		else if (dynamic_cast<QLabel*>(object)) {
-			auto typeWidget = dynamic_cast<QLabel*>(object);
-			strText = typeWidget->text();
+		else if (auto pWidget = OTo<QLabel>(object))
+		{
+			strText = pWidget->text();
 		}
-		else if (dynamic_cast<QComboBox*>(object)) {
-			auto typeWidget = dynamic_cast<QComboBox*>(object);
-			strText = typeWidget->windowTitle();
+		else if (auto pWidget = OTo<QComboBox>(object)) 
+		{
+			strText = pWidget->currentText();
 		}
+		else if (auto pWidget = OTo<QCheckBox>(object))
+		{
+			strText = pWidget->text();
+		}
+
 		strText += QString(" | %1 | %2").arg(object->objectName()).arg(pointerToHex(object));
 	}
 	else if(OTo<QLayout>(object))
@@ -324,4 +329,483 @@ QGraphicsItem* graphicsItemAt(QPoint pt)
 	}
 
 	return pView->scene()->itemAt(pView->mapToScene(pView->mapFromGlobal(pt)), QTransform());
+}
+
+QString normalStyleSheet()
+{
+	QString strStyleSheet = R"(
+/* ========================================================================== */
+/* Global & Common Styles                                                    */
+/* ========================================================================== */
+
+QWidget {
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+	font-size: 9pt;
+	color: black;
+	background-color: #f0f0f0;
+}
+
+QDialog {
+	background-color: #f0f0f0;
+}
+
+
+/* ========================================================================== */
+/* QLabel Styles                                                             */
+/* ========================================================================== */
+
+QLabel {
+	background: transparent;
+}
+
+
+/* ========================================================================== */
+/* QPushButton Styles                                                        */
+/* ========================================================================== */
+
+QPushButton {
+	background-color: #e1e1e1;
+	border: 1px solid #adadad;
+	padding: 4px;
+	min-width: 60px;
+	font-size: 9pt;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+QPushButton:hover {
+	background-color: #e5f1fb;
+	border: 1px solid #0078d7;
+}
+
+QPushButton:pressed {
+	background-color: #cce4f7;
+	border: 1px solid #005499;
+}
+
+
+/* ========================================================================== */
+/* QLineEdit Styles                                                          */
+/* ========================================================================== */
+
+QLineEdit {
+	border: 1px solid #7a7a7a;
+	background: white;
+	selection-background-color: #0078d7;
+	font-size: 9pt;
+	color: black;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+
+/* ========================================================================== */
+/* QTextEdit & QPlainTextEdit Styles                                         */
+/* ========================================================================== */
+
+QTextEdit, QPlainTextEdit {
+	background-color: white;
+	border: 1px solid #7a7a7a;
+	selection-background-color: #0078d7;
+	selection-color: white;
+	font-size: 9pt;
+	color: black;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+QTextEdit:focus, QPlainTextEdit:focus {
+	border: 1px solid #0078d7;
+}
+
+
+/* ========================================================================== */
+/* QCheckBox & QRadioButton Styles                                           */
+/* ========================================================================== */
+
+QCheckBox, QRadioButton {
+	spacing: 5px;
+	font-size: 9pt;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+QCheckBox::indicator, QRadioButton::indicator {
+	width: 13px;
+	height: 13px;
+}
+
+QCheckBox::indicator:unchecked {
+	border: 1px solid #7a7a7a;
+	background: white;
+}
+
+QCheckBox::indicator:checked {
+	border: 1px solid #0078d7;
+	background: #0078d7;
+}
+
+QRadioButton::indicator:unchecked {
+	border: 1px solid #7a7a7a;
+	background: white;
+	border-radius: 7px;
+}
+
+QRadioButton::indicator:checked {
+	border: 1px solid #0078d7;
+	background: #0078d7;
+	border-radius: 7px;
+}
+
+
+/* ========================================================================== */
+/* QSpinBox & QDoubleSpinBox Styles                                          */
+/* ========================================================================== */
+
+QSpinBox, QDoubleSpinBox {
+	background: white;
+	border: 1px solid #7a7a7a;
+	padding: 2px;
+	font-size: 9pt;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+	background: #e1e1e1;
+	border-left: 1px solid #7a7a7a;
+}
+
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+	background: #e1e1e1;
+	border-left: 1px solid #7a7a7a;
+}
+
+
+/* ========================================================================== */
+/* QComboBox Styles                                                          */
+/* ========================================================================== */
+
+QComboBox {
+	background: white;
+	border: 1px solid #7a7a7a;
+	padding: 2px 18px 2px 3px;
+	font-size: 9pt;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+QComboBox::drop-down {
+	subcontrol-origin: padding;
+	subcontrol-position: top right;
+	width: 15px;
+	border-left: 1px solid #7a7a7a;
+}
+
+QComboBox::down-arrow {
+	width: 0;
+	height: 0;
+	border-left: 4px solid transparent;
+	border-right: 4px solid transparent;
+	border-top: 4px solid #606060;
+}
+
+QComboBox QAbstractItemView {
+	background: white;
+	border: 1px solid #7a7a7a;
+	selection-background-color: #cce8ff;
+	selection-color: black;
+}
+
+
+/* ========================================================================== */
+/* QScrollBar Styles                                                         */
+/* ========================================================================== */
+
+QScrollBar:vertical {
+	background: #f0f0f0;
+	width: 6px;
+	margin: 0px;
+}
+
+QScrollBar::handle:vertical {
+	background: #cdcdcd;
+	min-height: 20px;
+	border-radius: 0px;
+}
+
+QScrollBar::handle:vertical:hover {
+	background: #a6a6a6;
+}
+
+QScrollBar::add-line:vertical {
+	height: 0px;
+	subcontrol-position: bottom;
+	subcontrol-origin: margin;
+}
+
+QScrollBar::sub-line:vertical {
+	height: 0px;
+	subcontrol-position: top;
+	subcontrol-origin: margin;
+}
+
+QScrollBar:horizontal {
+	background: #f0f0f0;
+	height: 6px;
+	margin: 0px;
+}
+
+QScrollBar::handle:horizontal {
+	background: #cdcdcd;
+	min-width: 20px;
+	border-radius: 0px;
+}
+
+QScrollBar::handle:horizontal:hover {
+	background: #a6a6a6;
+}
+
+
+/* ========================================================================== */
+/* QMenu & QMenuBar Styles                                                   */
+/* ========================================================================== */
+
+QMenu {
+	background: white;
+	color: black;
+	border: 1px solid #cccccc;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+	font-size: 9pt;
+	padding: 0px;
+	margin: 0px;
+	border-radius: 0px;
+}
+
+QMenu::item {
+	padding: 4px 10px;
+	background: transparent;
+	color: black;
+	border-radius: 0px;
+}
+
+QMenu::item:hover {
+	background-color: #90c8f6;
+	color: black;
+	border-radius: 0px;
+}
+
+QMenu::item:selected {
+	background-color: #90c8f6;
+	color: black;
+	border-radius: 0px;
+}
+
+QMenu::item:disabled {
+	color: #404040;
+}
+
+QMenu::item:selected:disabled {
+	color: #404040;
+}
+
+QMenuBar {
+	background: #f0f0f0;
+	color: black;
+	border-bottom: 1px solid #dcdcdc;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+	font-size: 9pt;
+}
+
+QMenuBar::item {
+	background: transparent;
+	color: black;
+	padding: 4px 10px;
+}
+
+QMenuBar::item:selected {
+	background: #cce8ff;
+}
+
+QMenuBar::item:pressed {
+	background: #99c9ef;
+}
+
+
+/* ========================================================================== */
+/* QTabWidget & QTabBar Styles                                               */
+/* ========================================================================== */
+
+QTabWidget::pane {
+	border: 1px solid #7a7a7a;
+	background: white;
+	padding: 2px;
+}
+
+QTabWidget::tab-bar {
+	alignment: left;
+}
+
+QTabBar::tab {
+	background: #e1e1e1;
+	border: 1px solid #adadad;
+	padding: 4px 10px;
+	margin-right: 2px;
+	font-size: 9pt;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+QTabBar::tab:selected {
+	background: white;
+	border-bottom: 0px;
+}
+
+QTabBar::tab:hover {
+	background: #e5f1fb;
+}
+
+
+/* ========================================================================== */
+/* QAbstractView & QHeaderView Styles (Base for Tree/Table/List)             */
+/* ========================================================================== */
+
+QAbstractView {
+	background: white;
+	color: rgba(15,15,15,255);
+	border: 1px solid #7a7a7a;
+	font-size: 9pt;
+}
+
+QAbstractView::item {
+	outline: none;
+	border: none;
+}
+
+QAbstractView::item:hover {
+	background-color: rgba(205, 232, 255, 255);
+	color: black;
+}
+
+QAbstractView::item:selected {
+	background-color: rgba(217, 217, 217, 255);
+	color: black;
+}
+
+QHeaderView::section {
+	background-color: #f0f0f0;
+	color: black;
+	border: 1px solid #dcdcdc;
+	padding: 4px;
+	font-size: 9pt;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+
+/* ========================================================================== */
+/* QTreeWidget Styles                                                        */
+/* ========================================================================== */
+
+QTreeWidget {
+	background:rgba(255,255,255,255);
+	color:black;
+	font:9pt Microsoft YaHei;
+	border:1px solid rgba(185,185,185,255);
+	outline:0px;
+    show-decoration-selected:1;
+}
+
+QTreeWidget::item{
+	outline:0px;
+	border:3px;
+	height: 25px;
+	color:transparent;
+}
+
+QTreeWidget::item:hover,QTreeWidget::branch:hover{
+	background:rgba(235,235,235,255);
+}
+
+QTreeWidget::item:selected,QTreeWidget::branch:selected {
+	background:rgba(204,232,255,255);
+}
+
+QTreeWidget::branch {
+	padding-top:2px;
+}
+
+QTreeWidget::branch:has-children:closed {
+	image: url(:/icons/resource/tree_open.png);
+}
+
+QTreeWidget::branch:has-children:open {
+	image: url(:/icons/resource/tree_close.png);
+}
+
+/* ========================================================================== */
+/* QTableWidget Styles                                                       */
+/* ========================================================================== */
+
+QTableWidget {
+	background-color: white;
+	alternate-background-color: #f7f7f7;
+	gridline-color: #d0d0d0;
+	selection-background-color: #cce8ff;
+	selection-color: black;
+	border: 1px solid #7a7a7a;
+	font-size: 9pt;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+QTableWidget::item {
+	padding: 2px;
+	border: none;
+	outline: none;
+}
+
+QTableWidget::item:hover {
+	background-color: #e5f3ff;
+}
+
+QTableWidget::item:selected {
+	background-color: #cce8ff;
+	color: black;
+}
+
+QTableWidget QTableCornerButton::section {
+	background-color: #f0f0f0;
+	border: 1px solid #dcdcdc;
+}
+
+
+/* ========================================================================== */
+/* QListView Styles                                                          */
+/* ========================================================================== */
+
+QListView {
+	background-color: white;
+	border: 1px solid #7a7a7a;
+	selection-background-color: #cce8ff;
+	selection-color: black;
+	font-size: 9pt;
+	outline: none;
+	padding: 0px;
+	margin: 0px;
+	font-family: 'Microsoft YaHei', 'Segoe UI';
+}
+
+QListView::item {
+	padding: 2px;
+	border: none;
+	color: black;
+	background: white;
+}
+
+QListView::item:hover {
+	background-color: #e5f3ff;
+}
+
+QListView::item:selected {
+	background-color: #cce8ff;
+	color: black;
+}
+
+QListView::item:selected:!active {
+	background-color: #d9d9d9;
+}
+)";
+	return strStyleSheet;
 }
