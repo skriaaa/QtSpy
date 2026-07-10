@@ -43,6 +43,10 @@ CWidgetSpyTree::CWidgetSpyTree(QWidget* parent /*= nullptr*/) : QTreeWidget(pare
 		CSpyIndicatorWnd::showWnd(itemArea(pCurrentItem), false);
 	});
 }
+CWidgetSpyTree::~CWidgetSpyTree()
+{
+	
+}
 
 bool CWidgetSpyTree::setTreeTarget(QGraphicsItem* target)
 {
@@ -77,7 +81,10 @@ bool CWidgetSpyTree::setTreeTarget(QObject* target)
 
 bool CWidgetSpyTree::AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode) {
 	if (parent && parentNode) {
-		connect(parent, &QObject::destroyed, this, &CWidgetSpyTree::removeTargetNode);
+		if (parent != this && !isAncestorOf(parent))
+		{
+			connect(parent, &QObject::destroyed, this, &CWidgetSpyTree::removeTargetNode);
+		}
 
 		m_mapWidgetNode[parent] = dynamic_cast<CTreeWidgetItem*>(parentNode);
 		parentNode->setText(0, objectString(parent));
@@ -404,6 +411,7 @@ bool CWidgetSpyTree::showWidgetInfo(QTreeWidgetItem* pTreeItem)
 			pInfo->AddAttribute("sizeHint", QString("(%1,%2)").arg(pLayout->totalSizeHint().width()).arg(pLayout->totalSizeHint().height()));
 			pInfo->AddAttribute("maxSize", QString("(%1,%2)").arg(pLayout->totalMaximumSize().width()).arg(pLayout->totalMaximumSize().height()));
 			pInfo->AddAttribute("minSize", QString("(%1,%2)").arg(pLayout->totalMinimumSize().width()).arg(pLayout->totalMinimumSize().height()));
+			pInfo->AddAttribute("margins", QString("(%1,%2,%3,%4)").arg(pLayout->contentsMargins().left()).arg(pLayout->contentsMargins().top()).arg(pLayout->contentsMargins().right()).arg(pLayout->contentsMargins().bottom()));
 			pInfo->AddAttribute("sizeConstrant", QMetaEnum::fromType<QLayout::SizeConstraint>().valueToKey(pLayout->sizeConstraint()));
 			pInfo->AddAttribute("spacing", QString::number(pLayout->spacing()));
 			pInfo->showOnTop();

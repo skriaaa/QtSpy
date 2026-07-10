@@ -9,7 +9,7 @@
 #include <QTextStream>
 #include <QCoreApplication>
 #include "publicfunction.h"
-
+extern QString s_strDllPath;
 class CLogThread:public QThread
 {
 public:
@@ -26,7 +26,20 @@ public:
 public:
 	virtual void run() override
 	{
-		QFile file(QCoreApplication::applicationDirPath() + "/" + QDate::currentDate().toString("yyyyMMdd") + ".log");
+		QString strLogPath = s_strDllPath;
+		if (strLogPath.isEmpty())
+		{
+			strLogPath = QCoreApplication::applicationDirPath() + "/";
+		}
+		else
+		{
+			strLogPath += "/";
+		}
+
+		strLogPath += QCoreApplication::applicationName() + "_" + QString::number(QCoreApplication::applicationPid()) + "_";
+		strLogPath += QDate::currentDate().toString("yyyyMMdd") + ".log";
+
+		QFile file(strLogPath);
 		if (false == file.open(QIODevice::Append | QIODevice::Text))
 		{
 			return;
@@ -43,7 +56,7 @@ public:
 				{
 					break;
 				}
-				stream << strLog.toLocal8Bit();
+				stream << strLog;
 				strLog = popLog();
 			} while (true);
 

@@ -31,19 +31,18 @@
 #include <QResource>
 #include <QColorDialog>
 #include <QMessageBox>
-#include <QTreeWidget>
 #include <QMetaMethod>
 #include <QTime>
 #include <QGraphicsItem>
 #include <QGraphicsView>
 #include <QGraphicsScene>
-//#include "QtCore/5.14.2/QtCore/private/qobject_p.h"
 #include "publicfunction.h"
 #include "proxyStyle/ProxyStyle.h"
 #include "StyleEditDlg.h"
 #include "utils/LogRecorder.h"
 #include "SpyMainWindow.h"
 #include "ObjectTree.h"
+#include "ConnectionInfo.h"
 
 void CXDialog::showEvent(QShowEvent* event)
 {
@@ -314,39 +313,7 @@ void CSignalSpyWnd::setTargetObject(QObject* target)
 
 void CSignalSpyWnd::ParseSignal(QObject* target)
 {
-	target->dumpObjectInfo();
-	int row = m_pSignalTable->rowCount();
-	//QObjectPrivate* sp = QObjectPrivate::get(target);
-	//{
-	//	QObjectPrivate::ConnectionDataPointer connections(sp->connections.loadRelaxed());
-	//	QObjectPrivate::SignalVector* signalVector = connections->signalVector.loadRelaxed();
-	//	for (int i = 0; i < signalVector->count(); ++i)
-	//	{
-	//		const QObjectPrivate::ConnectionList& list = signalVector->at(i);
-	//		QAtomicPointer<QObjectPrivate::Connection> curConnection = list.first;
-	//		QObject* obj = curConnection.loadRelaxed()->receiver.loadRelaxed();
-	//		QString str = obj->metaObject()->className();
-	//	}
-	//}
 
-	QTableWidgetItem* item = new QTableWidgetItem;
-	auto fnQuerySignalSlot = [&](const QMetaObject* metaObject, QObject* widget) {
-		for (int i = metaObject->methodOffset(); i < metaObject->methodCount(); ++i) {
-			QMetaMethod method = metaObject->method(i);
-			QString strSignature1 = QString("%1::%2").arg(metaObject->className()).arg(QString(method.methodSignature()));
-			if (method.methodType() == QMetaMethod::Signal) {
-				QString strSignature = QString("%1::%2").arg(metaObject->className()).arg(QString(method.methodSignature()));
-
-				//pInfo->AddInfo(strSignature, row++, 0);
-				//dynamic_cast<QObject*>(widget)->receivers(SIGNAL(clicked(bool)));
-
-			}
-			if (method.methodType() == QMetaMethod::Slot) {
-				QString strSignature = QString("%1::%2").arg(metaObject->className()).arg(QString(method.methodSignature()));
-				//pInfo->AddInfo(strSignature, slotIndex++, 1);
-			}
-		}
-	};
 }
 
 void CSignalSpyWnd::initWidgets()
@@ -360,6 +327,7 @@ void CSignalSpyWnd::initWidgets()
 
 	QTabWidget* tab = new QTabWidget;
 	layout()->addWidget(tab);
+	tab->addTab(m_pConnectionTable, "连接");
 	tab->addTab(m_pSignalTable, "信号");
 	tab->addTab(m_pSlotTable, "槽");
 }
@@ -370,12 +338,13 @@ void CSignalSpyWnd::initTableWidget()
 		table = new QTableWidget;
 		table->setColumnCount(titles.size());
 		table->setHorizontalHeaderLabels(titles);
-		table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
 		table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 	};
 
-	fnSetTable(m_pSignalTable, { "信号", "槽", "receiver" });
-	fnSetTable(m_pSlotTable, { "槽", "信号", "sender" });
+	fnSetTable(m_pSignalTable, { "signal" });
+	fnSetTable(m_pSlotTable, { "slot" });
+	fnSetTable(m_pConnectionTable, { "sender", "signal", "receiver", "slot", "type" });
+	m_pConnectionTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
 }
 
 void CSignalSpyWnd::initContextMenu()
@@ -386,7 +355,6 @@ void CSignalSpyWnd::initContextMenu()
 		QAction* acEmit = contextMenu.addAction("发送信号");
 		QAction* acInspectThis = contextMenu.addAction("监控信号");
 		QAction* acInspectAll = contextMenu.addAction("监控所有信号");
-		QAction* acQueryConnects = contextMenu.addAction("查看所有连接");
 
 		QPoint pt = QCursor().pos();
 		QAction* acbk = contextMenu.exec(pt);
@@ -428,49 +396,54 @@ void CSignalSpyWnd::initContextMenu()
 	});
 }
 
-void CSignalSpyWnd::addItem(QTableWidget* table, int row, int col, const QMetaObject* metaObject, QMetaMethod* method)
+void CSignalSpyWnd::addMethodRow(QTableWidget* table, QMetaMethod* method)
 {
-	if (method == nullptr)
+	if (method == nullptr || nullptr == method->enclosingMetaObject())
 		return;
 
-	if (table->rowCount() <= row)
-	{
-		table->insertRow(row);
-	}
-
-	QString strSignature = QString("%1::%2").arg(metaObject->className()).arg(QString(method->methodSignature()));
+	int nRow = table->rowCount();
+	table->insertRow(nRow);
+	QString strSignature = QString("%1::%2").arg(method->enclosingMetaObject()->className()).arg(QString(method->methodSignature()));
 	QTableWidgetItem* item = new QTableWidgetItem;
 	item->setText(strSignature);
 	item->setData(Qt::UserRole, QVariant::fromValue((void*)(method)));
-	table->setItem(row, col, item);
+	table->setItem(nRow, 0, item);
+}
+
+void CSignalSpyWnd::addConnectionRow(ConnectionInfo* pInfo)
+{
+	int nRow = m_pConnectionTable->rowCount();
+	m_pConnectionTable->insertRow(nRow);
+	m_pConnectionTable->setItem(nRow, 0, new QTableWidgetItem(objectClass(pInfo->pSender) + ("(0x" + QString::number((uintptr_t)pInfo->pSender, 16) + ")")));
+	m_pConnectionTable->setItem(nRow, 1, new QTableWidgetItem(pInfo->strSignal));
+	m_pConnectionTable->setItem(nRow, 2, new QTableWidgetItem(objectClass(pInfo->pReceiver) + ("(0x" + QString::number((uintptr_t)pInfo->pReceiver, 16) + ")")));
+	m_pConnectionTable->setItem(nRow, 3, new QTableWidgetItem(pInfo->strSlot));
+	m_pConnectionTable->setItem(nRow, 4, new QTableWidgetItem(pInfo->strConnectType));
 }
 
 void CSignalSpyWnd::setContent()
 {
 	clearContent();
-	auto fnQuerySignalSlot = [&](const QMetaObject* metaObject) {
-		int rowSignal = m_pSignalTable->rowCount();
-		int rowSlot = m_pSlotTable->rowCount();
-		for (int i = metaObject->methodOffset(); i < metaObject->methodCount(); ++i) {
-			QMetaMethod&& method = metaObject->method(i);
-			if (method.methodType() == QMetaMethod::Signal)
-			{
-				auto ret = m_arrSignal.insert({ new QMetaMethod(method), nullptr });
-				addItem(m_pSignalTable, rowSignal++, 0, metaObject, ret.first->first);
-			}
-
-			if (method.methodType() == QMetaMethod::Slot)
-			{
-				addItem(m_pSlotTable, rowSlot++, 0, metaObject, &method);
-			}
-		}
-	};
-
-	const QMetaObject* metaObject = m_pTargetObject->metaObject();
-	while (metaObject)
+	CConnectionAanlyzer analyzer(m_pTargetObject);
+	for (auto method : analyzer.objectSignals())
 	{
-		fnQuerySignalSlot(metaObject);
-		metaObject = metaObject->superClass();
+		auto ret = m_arrSignal.insert({ new QMetaMethod(method), nullptr });
+		addMethodRow(m_pSignalTable, ret.first->first);
+	}
+
+	for (auto method : analyzer.objectSlots())
+	{
+		addMethodRow(m_pSlotTable, &method);
+	}
+
+	for (auto connect : analyzer.outBoundConnections())
+	{
+		addConnectionRow(&connect);
+	}
+
+	for (auto connect : analyzer.inBoundConnections())
+	{
+		addConnectionRow(&connect);
 	}
 }
 

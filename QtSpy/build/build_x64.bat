@@ -1,4 +1,4 @@
-cd /d %~dp0..
 del "CMakeCache.txt"
 rmdir /s /q "CMakeFiles"
-cmake . -DPLATFORMTYPE:STRING=Windows
+cd /d %~dp0..
+cmake . -B build -DPLATFORMTYPE:STRING=Windows -A x64

@@ -82,6 +82,7 @@ private:
 };
 
 class CLogTraceWnd;
+struct ConnectionInfo;
 class CSignalSpyWnd :public CXDialog {
 	class CSignalSpy :public QSignalSpy {
 	public:
@@ -105,7 +106,8 @@ private:
 
 	void initContextMenu();
 
-	void addItem(QTableWidget* table, int row, int col, const QMetaObject* metaObject, QMetaMethod* method);
+	void addMethodRow(QTableWidget* table, QMetaMethod* method);
+	void addConnectionRow(ConnectionInfo* pInfo);
 
 	void setContent();
 	void clearContent();
@@ -113,6 +115,7 @@ private:
 	CLogTraceWnd* traceWnd();
 private:
 	QTreeWidget* m_pSignalTree = nullptr;
+	QTableWidget* m_pConnectionTable{ nullptr };
 	QTableWidget* m_pSignalTable{ nullptr };
 	QTableWidget* m_pSlotTable{ nullptr };
 	QObject* m_pTargetObject{ nullptr };

@@ -10,6 +10,8 @@
 #include <QStandardItemModel>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QShowEvent>
+#include <QTextCursor>
 // this module
 #include "stylemanager.h"
 #include "publicfunction.h"
@@ -34,6 +36,19 @@ bool CStyleEditWnd::EditWidgetStyle(QWidget* pWidget)
 		return true;
 	}
 	return false;
+}
+
+void CStyleEditWnd::showEvent(QShowEvent* event)
+{
+	CXDialog::showEvent(event);
+	// 弹出时把样式文本滚到最后一行
+	if (auto* edit = findChild<QPlainTextEdit*>())
+	{
+		QTextCursor c = edit->textCursor();
+		c.movePosition(QTextCursor::End);
+		edit->setTextCursor(c);
+		edit->ensureCursorVisible();
+	}
 }
 
 void CStyleEditWnd::initWidgets()

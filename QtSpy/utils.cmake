@@ -107,34 +107,25 @@ endmacro()
 function(linkQtModules)
 	message("\n*****************linkQtModules begin*****************\n")
 	message("Current Qt Version : ${QT_VERSION_MAJOR} ${QT_VERSION}")
-	
-	set(options)
-	set(oneValueArgs)
-	set(multiValueArgs MODULES)
 	cmake_parse_arguments(MY_ARGS
-		"${options}"   			# options
-		"${oneValueArgs}"   	# one_value_keywords
-		"${multiValueArgs}"     # multi_value_keywords
+		"PRIVATEHEAD"   		# use private header
+		""						# one_value_keywords
+		"MODULES"     			# multi_value_keywords
 		${ARGV})
-	
+
 	foreach(moduleName ${MY_ARGS_MODULES})
 		find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS ${moduleName})
-		target_link_libraries(${PROJECT_NAME} PRIVATE Qt${QT_VERSION_MAJOR}::${moduleName})
+		set(moduleFullName Qt${QT_VERSION_MAJOR}::${moduleName})
+		message("linkQtModule: ${moduleFullName}")
+
+		if(MY_ARGS_PRIVATEHEAD)
+            target_link_libraries(${PROJECT_NAME} PRIVATE ${moduleFullName})
+        else()
+            target_link_libraries(${PROJECT_NAME} PRIVATE ${moduleFullName} "${moduleFullName}Private")
+        endif()
 		target_include_directories(${PROJECT_NAME} PRIVATE ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})	# 常规头文件
-		message("linkQtModule: Qt${QT_VERSION_MAJOR}::${moduleName}")
 	endforeach()
 
-	if(0)
-	# private 头文件
-	foreach(curPath ${Qt${QT_VERSION_MAJOR}${moduleName}_INCLUDE_DIRS})
-		set(headerpath "${curPath}/${QT_VERSION}")
-		if(EXISTS ${headerpath})
-		message("include Qt Private headerpath : ${headerpath}")
-		target_include_directories(${PROJECT_NAME} PRIVATE ${headerpath})
-		#addPathToSysVar(${headerpath} QT_PRIVATE_INCLUDE_PATH)
-		endif()
-	endforeach()
-	endif()
 	message("\n*****************linkQtModules end*****************\n")
 endfunction()
 

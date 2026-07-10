@@ -21,6 +21,7 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_DEBUG ${targetPath})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE ${targetPath})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG ${targetPath})
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE ${targetPath})
+set(CMAKE_DEBUG_POSTFIX "d")
 
 # 添加源文件
 findSourceFile(
@@ -50,9 +51,13 @@ endif()
 
 # link Qt
 linkQtModules(
-	MODULES Core Widgets Test Concurrent
+	PRIVATEHEAD
+	MODULES Core 
 		)
-
+linkQtModules(
+	MODULES Widgets Test Concurrent
+		)
+		
 # 包含工程目录
 INCLUDEDIRECTORY()
 

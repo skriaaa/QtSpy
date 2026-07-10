@@ -179,10 +179,6 @@ bool CSpyMainWindow::selfEventFilter(QObject* watched, QEvent* event)
 				case EScreenMouseAction::SpyTarget:
 				{
 					setTreeTarget(ptMouse);
-					if (!isVisible())
-					{
-						showCenter();
-					}
 					break;
 				}
 				case EScreenMouseAction::CheckColor:
@@ -196,6 +192,21 @@ bool CSpyMainWindow::selfEventFilter(QObject* watched, QEvent* event)
 				}
 				default:
 					break;
+			}
+
+			// 抓取结束, 把主窗口置顶 (覆盖监控/鼠标查找/ALT+E 三种入口)
+			if (!isVisible())
+			{
+				showCenter();           // 复用既有: show + raise + 居中
+			}
+			else
+			{
+				if (isMinimized())
+				{
+					showNormal();
+				}
+				raise();
+				activateWindow();
 			}
 			return true;
 		}

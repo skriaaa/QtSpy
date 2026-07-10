@@ -50,6 +50,7 @@ public:
 	Q_ENUM(ESpyTreeMenuAction);
 public:
 	CWidgetSpyTree(QWidget* parent = nullptr);
+	~CWidgetSpyTree() override;
 public:
 	bool setTreeTarget(QGraphicsItem* item);
 	virtual bool setTreeTarget(QObject* target);
