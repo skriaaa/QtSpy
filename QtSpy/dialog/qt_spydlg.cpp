@@ -44,6 +44,30 @@
 #include "ObjectTree.h"
 #include "ConnectionInfo.h"
 
+namespace
+{
+	constexpr int LOG_LIST_MAX_COUNT = 5000;
+	constexpr int LOG_LIST_FLUSH_INTERVAL = 50;
+	constexpr int LOG_LIST_FLUSH_BATCH = 500;
+	constexpr int LOG_LIST_PENDING_MAX_COUNT = LOG_LIST_MAX_COUNT + LOG_LIST_FLUSH_BATCH;
+
+	void selectTreeItem(QTreeWidget* pTree, QTreeWidgetItem* pItem)
+	{
+		if ((nullptr == pTree) || (nullptr == pItem))
+		{
+			return;
+		}
+
+		for (QTreeWidgetItem* pParentItem = pItem->parent(); nullptr != pParentItem; pParentItem = pParentItem->parent())
+		{
+			pParentItem->setExpanded(true);
+		}
+		pItem->setExpanded(true);
+		pTree->setCurrentItem(pItem);
+		pTree->scrollToItem(pItem);
+	}
+}
+
 void CXDialog::showEvent(QShowEvent* event)
 {
 	if (styleSheet().isEmpty())
@@ -540,12 +564,16 @@ void CCursorLocateWnd::mouseMoveEvent(QMouseEvent* event)
 	QDialog::mouseMoveEvent(event);
 }
 
-CLogTraceWnd::CLogTraceWnd(QWidget* parent /*= nullptr*/) :CXDialog(parent)
+CLogTraceWnd::CLogTraceWnd(QWidget* parent /*= nullptr*/, bool bShowBreakCheck /*= true*/) :CXDialog(parent)
 {
 	resize(400, 300);
 	setAttribute(Qt::WA_DeleteOnClose, false);
 	setWindowFlags(windowFlags() | Qt::Tool | Qt::WindowMinMaxButtonsHint);
 	initWidgets();
+	if (bShowBreakCheck && nullptr != m_pControlLayout)
+	{
+		m_pControlLayout->addWidget(createBreakCheck());
+	}
 }
 
 bool CLogTraceWnd::AddInfo(QString strInfo)
@@ -575,17 +603,16 @@ bool CLogTraceWnd::AddInfo(QString strInfo)
 
 	strInfo = QString("%1 | %2 | %3").arg(m_nCount++, 4, 10, QLatin1Char('0')).arg(QTime::currentTime().toString("hh:mm:ss::zzz")).arg(strInfo);
 	CLogRecorder::instance().addLog(strInfo);
+	if (m_bBreakOnTrace)
+	{
+		Q_ASSERT_X(false, "QtSpy trace break", qPrintable(strInfo));
+	}
 	if(m_bOnlyLog)
 	{
 		return true;
 	}
 
-	m_listModel.insertRow(m_listModel.rowCount());
-	m_listModel.setData(m_listModel.index(m_listModel.rowCount() - 1), strInfo);
-	if (m_bTrace)
-	{
-		m_listView->scrollTo(m_listModel.index(m_listModel.rowCount() - 1, 0));
-	}
+	appendPendingLog(strInfo, m_nLogGeneration);
 
 	return true;
 }
@@ -597,12 +624,20 @@ void CLogTraceWnd::initWidgets()
 	m_listView = new QListView();
 	m_listView->setModel(&m_listModel);
 	connect(m_listView, &QListView::clicked, [&]() {m_bTrace = false; });
+	m_timerFlushLog.setInterval(LOG_LIST_FLUSH_INTERVAL);
+	QObject::connect(&m_timerFlushLog, &QTimer::timeout, [this]() {
+		flushPendingLogs();
+	});
 	mainLayout->addWidget(m_listView);
 
 	auto control_1 = new QHBoxLayout();
+	m_pControlLayout = control_1;
 	{
 		auto btnClear = new QPushButton("clear");
 		QObject::connect(btnClear, &QPushButton::clicked, [&]() {
+			++m_nLogGeneration;
+			m_listPendingLog.clear();
+			m_timerFlushLog.stop();
 			m_listModel.removeRows(0, m_listModel.rowCount());
 			this->m_nCount = 0;
 			});
@@ -655,7 +690,65 @@ void CLogTraceWnd::initWidgets()
 	mainLayout->addLayout(control_3);
 }
 
-CEventTraceWnd::CEventTraceWnd(QWidget* parent /*= nullptr*/) : CLogTraceWnd(parent)
+void CLogTraceWnd::appendPendingLog(QString strInfo, int nGeneration)
+{
+	if (m_nLogGeneration != nGeneration)
+	{
+		return;
+	}
+
+	m_listPendingLog.append(strInfo);
+	int nOverflowCount = m_listPendingLog.size() - LOG_LIST_PENDING_MAX_COUNT;
+	if (0 < nOverflowCount)
+	{
+		int nRemoveCount = qMax(LOG_LIST_FLUSH_BATCH, nOverflowCount);
+		m_listPendingLog.erase(m_listPendingLog.begin(), m_listPendingLog.begin() + nRemoveCount);
+	}
+
+	if (!m_timerFlushLog.isActive())
+	{
+		m_timerFlushLog.start();
+	}
+}
+
+void CLogTraceWnd::flushPendingLogs()
+{
+	if (m_listPendingLog.isEmpty())
+	{
+		m_timerFlushLog.stop();
+		return;
+	}
+
+	int nFlushCount = qMin(LOG_LIST_FLUSH_BATCH, m_listPendingLog.size());
+	int nOverflowCount = (m_listModel.rowCount() + nFlushCount) - LOG_LIST_MAX_COUNT;
+	if (0 < nOverflowCount)
+	{
+		m_listModel.removeRows(0, qMin(nOverflowCount, m_listModel.rowCount()));
+	}
+
+	int nStartRow = m_listModel.rowCount();
+	m_listModel.insertRows(nStartRow, nFlushCount);
+	for (int nIndex = 0; nIndex < nFlushCount; ++nIndex)
+	{
+		m_listModel.setData(m_listModel.index(nStartRow + nIndex), m_listPendingLog.takeFirst());
+	}
+
+	if (m_bTrace)
+	{
+		m_listView->scrollTo(m_listModel.index(m_listModel.rowCount() - 1, 0));
+	}
+}
+
+QCheckBox* CLogTraceWnd::createBreakCheck()
+{
+	auto checkBreak = new QCheckBox("触发中断");
+	QObject::connect(checkBreak, &QCheckBox::stateChanged, [this](int state) {
+		m_bBreakOnTrace = state != Qt::Unchecked;
+	});
+	return checkBreak;
+}
+
+CEventTraceWnd::CEventTraceWnd(QWidget* parent /*= nullptr*/) : CLogTraceWnd(parent, false)
 {
 	initWidget();
 	setAttribute(Qt::WA_DeleteOnClose, true);
@@ -715,6 +808,7 @@ void CEventTraceWnd::initWidget()
 	QPushButton* btnStop = new  QPushButton(m_bRunning ? "runing..." : "stoped");
 	QCheckBox* filter = new QCheckBox("屏蔽事件");
 	pLayout->addWidget(filter);
+	pLayout->addWidget(createBreakCheck());
 	pLayout->addSpacerItem(new QSpacerItem(1 , 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
 	pLayout->addWidget(btnStop);
 	dynamic_cast<QVBoxLayout*>(layout())->addLayout(pLayout);
@@ -812,7 +906,14 @@ void CSignalSpyWnd::CSignalSpy::setTraceWnd(CLogTraceWnd* wnd)
 	m_TraceWnd = wnd;
 }
 
-CFindWnd::CFindWnd(CSpyMainWindow* parent /*= nullptr*/):CXDialog(parent)
+CFindWnd::CFindWnd(CSpyMainWindow* parent /*= nullptr*/)
+	: CFindWnd((nullptr == parent) ? nullptr : parent->tree(), parent)
+{
+}
+
+CFindWnd::CFindWnd(QTreeWidget* pTree, QWidget* parent /*= nullptr*/)
+	: CXDialog(parent)
+	, m_pTargetTree(pTree)
 {
 	initWidget();
 }
@@ -830,27 +931,30 @@ void CFindWnd::initWidget()
 	QLineEdit* pEdit = new QLineEdit();
 
 	QObject::connect(pBtnYes, &QPushButton::clicked, [this, pEdit]() {
-		m_arrTargetItem = dynamic_cast<CSpyMainWindow*>(parent())->tree()->findItems(pEdit->text(), Qt::MatchFlag::MatchContains | Qt::MatchRecursive);
+		if (m_pTargetTree.isNull())
+		{
+			return;
+		}
+
+		m_nCurrentIndex = 0;
+		m_arrTargetItem = m_pTargetTree->findItems(pEdit->text(), Qt::MatchFlag::MatchContains | Qt::MatchRecursive);
 		if (!m_arrTargetItem.empty())
 		{
-			m_arrTargetItem.front()->setExpanded(true);
-			dynamic_cast<CSpyMainWindow*>(parent())->tree()->setCurrentItem(m_arrTargetItem.front());
+			selectTreeItem(m_pTargetTree.data(), m_arrTargetItem.front());
 		}
 	});
-	QObject::connect(pBtnNext, &QPushButton::clicked, [&]() {
+	QObject::connect(pBtnNext, &QPushButton::clicked, [this]() {
 		if (m_arrTargetItem.size() - 1 > m_nCurrentIndex)
 		{
 			m_nCurrentIndex++;
-			m_arrTargetItem[m_nCurrentIndex]->setExpanded(true);
-			dynamic_cast<CSpyMainWindow*>(parent())->tree()->setCurrentItem(m_arrTargetItem[m_nCurrentIndex]);
+			selectTreeItem(m_pTargetTree.data(), m_arrTargetItem[m_nCurrentIndex]);
 		}
 	});
-	QObject::connect(pBtnPrev, &QPushButton::clicked, [&]() {
+	QObject::connect(pBtnPrev, &QPushButton::clicked, [this]() {
 		if (m_nCurrentIndex > 0)
 		{
 			m_nCurrentIndex--;
-			m_arrTargetItem[m_nCurrentIndex]->setExpanded(true);
-			dynamic_cast<CSpyMainWindow*>(parent())->tree()->setCurrentItem(m_arrTargetItem[m_nCurrentIndex]);
+			selectTreeItem(m_pTargetTree.data(), m_arrTargetItem[m_nCurrentIndex]);
 		}
 	});
 

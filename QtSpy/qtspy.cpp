@@ -8,6 +8,7 @@
 #define QT_SPY_API Q_DECL_IMPORT
 #endif
 QString s_strDllPath;
+QString s_strLogRootPath;
 #ifdef Q_OS_WIN
 #include <windows.h>
 #include <QFileInfo>
@@ -19,6 +20,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID)
 		if (GetModuleFileNameW(hModule, szPath, MAX_PATH) > 0) {
 			QFileInfo fileInfo(QString::fromWCharArray(szPath));
 			s_strDllPath = fileInfo.absolutePath(); // 获取所在目录
+			s_strLogRootPath = s_strDllPath;
 		}
 
 		QMetaObject::invokeMethod(QCoreApplication::instance(), QtSpy::initSpy, Qt::QueuedConnection);

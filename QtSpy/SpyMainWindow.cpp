@@ -74,6 +74,7 @@ void CSpyMainWindow::initWindow()
 	layout()->setMargin(1);
 	setWindowFlags(windowFlags() | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowContextHelpButtonHint);
 	setAttribute(Qt::WA_DeleteOnClose);
+	setAttribute(Qt::WA_QuitOnClose, false);
 }
 
 void CSpyMainWindow::keyPressEvent(QKeyEvent* event)

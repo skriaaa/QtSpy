@@ -1,6 +1,7 @@
 #include "SpyWndManager.h"
 #include "SpyMainWindow.h"
 #include "publicfunction.h"
+#include "utils/LogRecorder.h"
 // qt module
 #include <QApplication>
 #include <QDesktopWidget>
@@ -14,11 +15,18 @@ CSpyWndManager::CSpyWndManager(QObject* parent) : QObject(parent)
 	qApp->installEventFilter(this);
 	m_pMainWnd = new CSpyMainWindow(qApp->desktop());
 	m_pMainWnd->setAttribute(Qt::WA_DeleteOnClose, false);
+	connect(qApp, &QApplication::lastWindowClosed, this, [this]() {
+		if (nullptr != m_pMainWnd)
+		{
+			m_pMainWnd->close();
+		}
+	});
 	spyWnd()->showCenter();
 }
 
 CSpyWndManager::~CSpyWndManager()
 {
+	CLogRecorder::shutdown();
 }
 
 bool CSpyWndManager::eventFilter(QObject* watched, QEvent* event)

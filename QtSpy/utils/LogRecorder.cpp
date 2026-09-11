@@ -1,15 +1,28 @@
 #include "LogRecorder.h"
 #include "stdarg.h"
+#include "stdio.h"
 #include <atomic>
 #include <QFile>
+#include <QtGlobal>
 #include <QTime>
 #include <QQueue>
 #include <QThread>
 #include <QMutex>
+#include <QMutexLocker>
+#include <QWaitCondition>
 #include <QTextStream>
 #include <QCoreApplication>
-#include "publicfunction.h"
+#include <QDate>
+#include <QDir>
+#include <QFileInfo>
 extern QString s_strDllPath;
+extern QString s_strLogRootPath;
+namespace
+{
+	QString logRootPath();
+	void appendLogText(const QString& strText);
+}
+
 class CLogThread:public QThread
 {
 public:
@@ -20,22 +33,23 @@ public:
 	}
 	~CLogThread()
 	{
+		stop();
+	}
+	void stop()
+	{
 		m_bRun.store(false);
-		while (!isFinished());	// 等待结束
+		m_waitCondition.wakeOne();
+		if (QThread::currentThread() != this)
+		{
+			wait();
+		}
 	}
 public:
 	virtual void run() override
 	{
-		QString strLogPath = s_strDllPath;
-		if (strLogPath.isEmpty())
-		{
-			strLogPath = QCoreApplication::applicationDirPath() + "/";
-		}
-		else
-		{
-			strLogPath += "/";
-		}
-
+		QDir logDir(logRootPath());
+		logDir.mkpath("log");
+		QString strLogPath = logDir.absoluteFilePath("log") + "/";
 		strLogPath += QCoreApplication::applicationName() + "_" + QString::number(QCoreApplication::applicationPid()) + "_";
 		strLogPath += QDate::currentDate().toString("yyyyMMdd") + ".log";
 
@@ -45,63 +59,152 @@ public:
 			return;
 		}
 
-		do
+		QTextStream stream(&file);
+		stream.setCodec("UTF-8");
+		while (true)
 		{
-			QString strLog = popLog();
-			QTextStream stream(&file);
-			stream.setCodec("UTF-8");
-			do
+			QQueue<QString> queueLogs = takeLogs();
+			bool bHasLog = !queueLogs.empty();
+			while (!queueLogs.empty())
 			{
-				if (strLog.isEmpty())
-				{
-					break;
-				}
+				QString strLog = queueLogs.front();
+				queueLogs.pop_front();
 				stream << strLog;
-				strLog = popLog();
-			} while (true);
-
-			if(!m_bRun.load())
+			}
+			if (bHasLog)
+			{
+				stream.flush();
+			}
+			if (!m_bRun.load() && queueLogs.empty() && !hasLog())
 			{
 				break;
 			}
 
-			QThread::msleep(20);
-		} while (true);
-		file.close();
+			QMutexLocker lock(&m_mutex);
+			if (m_queueLog.empty() && m_bRun.load())
+			{
+				m_waitCondition.wait(&m_mutex, 20);
+			}
+		}
+		stream.flush();
 	}
 	void addLog(QString strLog)
 	{
 		QMutexLocker lock(&m_mutex);
-		m_queueLog.append(strLog);
-	}
-	QString popLog()
-	{
-		if(m_queueLog.empty())
+		if (LOG_QUEUE_MAX <= m_queueLog.size())
 		{
-			return "";
+			++m_nDroppedCount;
+			return;
 		}
-		QString strData = m_queueLog.front();
-		m_queueLog.pop_front();
-		return strData;
+		m_queueLog.append(strLog);
+		m_waitCondition.wakeOne();
+	}
+	QQueue<QString> takeLogs()
+	{
+		QQueue<QString> queueLogs;
+		QMutexLocker lock(&m_mutex);
+		if (0 < m_nDroppedCount)
+		{
+			m_queueLog.prepend(QString("[QtSpy] dropped %1 log lines because log queue is full\n").arg(m_nDroppedCount));
+			m_nDroppedCount = 0;
+		}
+		queueLogs.swap(m_queueLog);
+		return queueLogs;
+	}
+	bool hasLog()
+	{
+		QMutexLocker lock(&m_mutex);
+		return !m_queueLog.empty();
 	}
 private:
 	QMutex m_mutex;
+	QWaitCondition m_waitCondition;
 	std::atomic<bool> m_bRun;
 	QQueue<QString> m_queueLog;
+	int m_nDroppedCount = 0;
+	static const int LOG_QUEUE_MAX = 10000;
 };
+
+namespace
+{
+	Q_GLOBAL_STATIC(CLogThread, g_logThread)
+	std::atomic<bool> g_bLogShutdown(false);
+	std::atomic<bool> g_bConnectQuit(false);
+
+	QString logRootPath()
+	{
+		if (!s_strLogRootPath.isEmpty())
+		{
+			QDir dir(s_strLogRootPath);
+			do
+			{
+				if (QFileInfo::exists(dir.absoluteFilePath("QtInjector.exe")))
+				{
+					return dir.absolutePath();
+				}
+			} while (dir.cdUp());
+		}
+		if (!s_strDllPath.isEmpty())
+		{
+			return s_strDllPath;
+		}
+		return QCoreApplication::applicationDirPath();
+	}
+
+	CLogThread* logThread()
+	{
+		if (g_bLogShutdown.load())
+		{
+			return nullptr;
+		}
+		if (g_logThread.isDestroyed())
+		{
+			return nullptr;
+		}
+		CLogThread* pThread = g_logThread();
+		if ((nullptr != QCoreApplication::instance()) && !g_bConnectQuit.exchange(true))
+		{
+			QObject::connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, []() {
+				CLogRecorder::shutdown();
+			});
+		}
+		return pThread;
+	}
+
+	void appendLogText(const QString& strText)
+	{
+		QString strTime = QTime::currentTime().toString("hh:mm:ss:zzz");
+		QString strLog = strTime + " | " + strText + "\n";
+		CLogThread* pThread = logThread();
+		if (nullptr != pThread)
+		{
+			pThread->addLog(strLog);
+		}
+	}
+}
+
 CLogRecorder& CLogRecorder::instance()
 {
 	static CLogRecorder recorder;
 	return recorder;
 }
 
+void CLogRecorder::shutdown()
+{
+	g_bLogShutdown.store(true);
+	if (g_logThread.exists() && !g_logThread.isDestroyed())
+	{
+		g_logThread->stop();
+	}
+}
+
 void CLogRecorder::addLog(const char* szLog)
 {
-	QString strTime = QTime::currentTime().toString("hh:mm:ss:zzz");
-	QString strLog = strTime + " | " + szLog + "\n";
-
-	static CLogThread thread;
-	thread.addLog(strLog);
+	if (nullptr == szLog)
+	{
+		return;
+	}
+	appendLogText(QString::fromUtf8(szLog));
 }
 
 void CLogRecorder::addLogVar(const char* szFormat,...)
@@ -109,9 +212,9 @@ void CLogRecorder::addLogVar(const char* szFormat,...)
 	va_list arrParam;
 	va_start(arrParam, szFormat);
 	char szBuff[1024] = { 0 };
-	snprintf(szBuff, sizeof(szBuff) - 1, szFormat, arrParam);
+	vsnprintf(szBuff, sizeof(szBuff) - 1, szFormat, arrParam);
 	va_end(arrParam);
-	addLog(szBuff);
+	appendLogText(QString::fromUtf8(szBuff));
 }
 
 void CLogRecorder::addLog(QString strFormat, QVariantList arrArgs)
@@ -120,5 +223,5 @@ void CLogRecorder::addLog(QString strFormat, QVariantList arrArgs)
 	{
 		strFormat = strFormat.arg(arrArgs[nIndex].toString());
 	}
-	addLog(strFormat.toStdString().c_str());
+	appendLogText(strFormat);
 }

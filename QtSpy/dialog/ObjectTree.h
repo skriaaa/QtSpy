@@ -58,6 +58,8 @@ public:
 	bool AddSubSpyNode(QGraphicsItem* parent, QTreeWidgetItem* parentNode);
 	void clearContent();
 	bool setCurrentSpyItem(void* pTarget);
+	bool setCurrentSpyItemAt(const QPoint& ptGlobal);
+	QRect itemAreaAt(const QPoint& ptGlobal);
 	int currentCount();
 	bool eventFilter(QObject* obj, QEvent* event) override;
 protected:
@@ -78,6 +80,8 @@ protected:
 	void showObjectTree(QTreeWidgetItem* pItem);
 
 	QRect itemArea(QTreeWidgetItem* pItem);
+	QTreeWidgetItem* spyItemAt(const QPoint& ptGlobal);
+	void selectSpyItem(QTreeWidgetItem* pItem);
 	template<class T> T* itemData(QTreeWidgetItem* item);
 	QGraphicsItem* graphicsData(QTreeWidgetItem* item);
 	QWidget* widgetData(QTreeWidgetItem* item);

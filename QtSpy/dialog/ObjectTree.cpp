@@ -3,12 +3,19 @@
 #include <QMenu>
 #include <QEvent>
 #include <QLayout>
-#include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QAbstractButton>
 #include <QContextMenuEvent>
 #include <QGraphicsView>
 #include <QGraphicsProxyWidget>
 #include <QWindow>
+#include <QDialog>
+#include <QMenuBar>
+#include <QApplication>
+#include <QMouseEvent>
+#include <QPointer>
+#include <QCursor>
+#include <QSize>
 
 #include "qt_spydlg.h"
 #include "StyleEditDlg.h"
@@ -16,6 +23,152 @@
 #include "proxyStyle/ProxyStyle.h"
 #include "SpyMainWindow.h"
 #include "utils/LogRecorder.h"
+
+namespace
+{
+	const QSize SPY_TREE_DIALOG_DEFAULT_SIZE(400, 300);
+
+	void activateWindow(QWidget* pWidget)
+	{
+		if (nullptr == pWidget)
+		{
+			return;
+		}
+
+		if (!pWidget->isVisible())
+		{
+			pWidget->show();
+		}
+		if (pWidget->isMinimized())
+		{
+			pWidget->showNormal();
+		}
+		pWidget->raise();
+		pWidget->activateWindow();
+	}
+
+	class CTreeCursorSearchFilter : public QObject
+	{
+	public:
+		CTreeCursorSearchFilter(QWidget* pHostWidget, CWidgetSpyTree* pTree)
+			: QObject(pHostWidget)
+			, m_pHostWidget(pHostWidget)
+			, m_pTree(pTree)
+		{
+		}
+
+		~CTreeCursorSearchFilter() override
+		{
+			finish();
+		}
+
+		void start()
+		{
+			if (m_pHostWidget.isNull() || m_pTree.isNull())
+			{
+				deleteLater();
+				return;
+			}
+
+			m_bRunning = true;
+			m_pHostWidget->grabMouse();
+			m_pHostWidget->installEventFilter(this);
+			m_pHostWidget->setMouseTracking(true);
+			QApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
+		}
+
+	protected:
+		bool eventFilter(QObject* pWatched, QEvent* pEvent) override
+		{
+			if (pWatched != m_pHostWidget.data())
+			{
+				return QObject::eventFilter(pWatched, pEvent);
+			}
+
+			switch (pEvent->type())
+			{
+			case QEvent::MouseMove:
+			{
+				QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(pEvent);
+				if ((nullptr != pMouseEvent) && !m_pTree.isNull())
+				{
+					CSpyIndicatorWnd::showWnd(m_pTree->itemAreaAt(pMouseEvent->globalPos()));
+				}
+				return true;
+			}
+			case QEvent::MouseButtonRelease:
+			{
+				QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(pEvent);
+				Qt::MouseButton eButton = (nullptr == pMouseEvent) ? Qt::NoButton : pMouseEvent->button();
+				QPoint ptGlobal = (nullptr == pMouseEvent) ? QPoint() : pMouseEvent->globalPos();
+				finish();
+				if ((Qt::RightButton != eButton) && !m_pTree.isNull())
+				{
+					m_pTree->setCurrentSpyItemAt(ptGlobal);
+				}
+				activateWindow(m_pHostWidget.data());
+				deleteLater();
+				return true;
+			}
+			default:
+				break;
+			}
+
+			return QObject::eventFilter(pWatched, pEvent);
+		}
+
+	private:
+		void finish()
+		{
+			if (!m_bRunning)
+			{
+				return;
+			}
+
+			if (!m_pHostWidget.isNull())
+			{
+				m_pHostWidget->removeEventFilter(this);
+				m_pHostWidget->releaseMouse();
+			}
+			QApplication::restoreOverrideCursor();
+			CSpyIndicatorWnd::instance().hide();
+			m_bRunning = false;
+		}
+
+	private:
+		QPointer<QWidget> m_pHostWidget;
+		QPointer<CWidgetSpyTree> m_pTree;
+		bool m_bRunning = false;
+	};
+
+	QDialog* createSpyTreeDialog(QWidget* pParentWidget, const QString& strTitle, CWidgetSpyTree* pTree)
+	{
+		QDialog* pDialog = new QDialog(pParentWidget);
+		pDialog->setAttribute(Qt::WA_DeleteOnClose);
+		pDialog->setWindowTitle(strTitle);
+
+		pDialog->resize(SPY_TREE_DIALOG_DEFAULT_SIZE);
+
+		QVBoxLayout* pLayout = new QVBoxLayout(pDialog);
+		pLayout->setMargin(1);
+
+		QMenuBar* pMenuBar = new QMenuBar(pDialog);
+		QAction* pActionNameSearch = pMenuBar->addAction("名称查找");
+		QAction* pActionCursorSearch = pMenuBar->addAction("鼠标查找");
+		QObject::connect(pActionNameSearch, &QAction::triggered, [pDialog, pTree]() {
+			CFindWnd* pFindWnd = new CFindWnd(pTree, pDialog);
+			pFindWnd->showOnTop();
+		});
+		QObject::connect(pActionCursorSearch, &QAction::triggered, [pDialog, pTree]() {
+			CTreeCursorSearchFilter* pFilter = new CTreeCursorSearchFilter(pDialog, pTree);
+			pFilter->start();
+		});
+		pLayout->setMenuBar(pMenuBar);
+		pLayout->addWidget(pTree);
+
+		return pDialog;
+	}
+}
 
 inline void CTreeWidgetDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
@@ -36,7 +189,8 @@ CWidgetSpyTree::CWidgetSpyTree(QWidget* parent /*= nullptr*/) : QTreeWidget(pare
 	setSelectionMode(QAbstractItemView::SingleSelection);
 
 	connect(this, &QTreeWidget::currentItemChanged, [this](QTreeWidgetItem* pCurrentItem, QTreeWidgetItem* pPrevItem) {
-		if (nullptr == pPrevItem || nullptr == pCurrentItem)
+		Q_UNUSED(pPrevItem);
+		if (nullptr == pCurrentItem)
 		{
 			return;
 		}
@@ -616,36 +770,28 @@ bool CWidgetSpyTree::spyFirstParentWidget(QTreeWidgetItem* pItem)
 void CWidgetSpyTree::showLayout(QTreeWidgetItem* pItem)
 {
 	if (QWidget* pTargetWidget = widgetData(pItem)) {
-		QDialog* dlg = new QDialog(window());
-		dlg->setWindowTitle("布局信息");
-		dlg->setLayout(new QHBoxLayout());
-		CLayoutTree* tree = new CLayoutTree();
-		tree->setTreeTarget(pTargetWidget);
-		dlg->layout()->addWidget(tree);
-		dlg->show();
+		CLayoutTree* pTree = new CLayoutTree();
+		pTree->setTreeTarget(pTargetWidget);
+		QDialog* pDialog = createSpyTreeDialog(window(), "布局树", pTree);
+		pDialog->show();
 	}
 
 	if (QLayout* layout = itemData<QLayout>(pItem))
 	{
-		QDialog* dlg = new QDialog(window());
-		dlg->setLayout(new QHBoxLayout());
-		dlg->setWindowTitle("布局信息");
-		CLayoutTree* tree = new CLayoutTree();
-		tree->setTreeTarget(layout);
-		dlg->layout()->addWidget(tree);
-		dlg->show();
+		CLayoutTree* pTree = new CLayoutTree();
+		pTree->setTreeTarget(layout);
+		QDialog* pDialog = createSpyTreeDialog(window(), "布局树", pTree);
+		pDialog->show();
 	}
 }
 
 void CWidgetSpyTree::showObjectTree(QTreeWidgetItem* pItem)
 {
 	if (QObject* pTarget = itemData<QObject>(pItem)) {
-		QDialog* dlg = new QDialog(window());
-		dlg->setLayout(new QHBoxLayout());
-		CObjectTree* tree = new CObjectTree();
-		tree->setTreeTarget(pTarget);
-		dlg->layout()->addWidget(tree);
-		dlg->show();
+		CObjectTree* pTree = new CObjectTree();
+		pTree->setTreeTarget(pTarget);
+		QDialog* pDialog = createSpyTreeDialog(window(), "对象树", pTree);
+		pDialog->show();
 	}
 }
 
@@ -671,11 +817,34 @@ bool CWidgetSpyTree::setCurrentSpyItem(void* pTarget)
 	auto pTreeNode = dynamic_cast<QTreeWidgetItem*>(pNode.data());
 	if (nullptr != pTreeNode)
 	{
-		setCurrentItem(pTreeNode);
+		selectSpyItem(pTreeNode);
 		return true;
 	}
 	
 	return false;
+}
+
+bool CWidgetSpyTree::setCurrentSpyItemAt(const QPoint& ptGlobal)
+{
+	QTreeWidgetItem* pItem = spyItemAt(ptGlobal);
+	if (nullptr == pItem)
+	{
+		return false;
+	}
+
+	selectSpyItem(pItem);
+	return true;
+}
+
+QRect CWidgetSpyTree::itemAreaAt(const QPoint& ptGlobal)
+{
+	QTreeWidgetItem* pItem = spyItemAt(ptGlobal);
+	if (nullptr == pItem)
+	{
+		return QRect();
+	}
+
+	return itemArea(pItem);
 }
 
 int CWidgetSpyTree::currentCount()
@@ -720,6 +889,51 @@ QRect CWidgetSpyTree::itemArea(QTreeWidgetItem* pItem)
 	}
 
 	return rcArea;
+}
+
+QTreeWidgetItem* CWidgetSpyTree::spyItemAt(const QPoint& ptGlobal)
+{
+	QTreeWidgetItem* pMatchedItem = nullptr;
+	qint64 nMatchedArea = 0;
+
+	auto fnCheckItem = [this, &ptGlobal, &pMatchedItem, &nMatchedArea](QTreeWidgetItem* pItem) {
+		QRect rcItemArea = itemArea(pItem);
+		if (!rcItemArea.isValid() || rcItemArea.isEmpty() || !rcItemArea.contains(ptGlobal))
+		{
+			return;
+		}
+
+		qint64 nArea = static_cast<qint64>(rcItemArea.width()) * rcItemArea.height();
+		if ((nullptr == pMatchedItem) || (nArea <= nMatchedArea))
+		{
+			pMatchedItem = pItem;
+			nMatchedArea = nArea;
+		}
+	};
+
+	for (int nIndex = 0; nIndex < topLevelItemCount(); ++nIndex)
+	{
+		travelTreeItem(topLevelItem(nIndex), fnCheckItem);
+	}
+
+	return pMatchedItem;
+}
+
+void CWidgetSpyTree::selectSpyItem(QTreeWidgetItem* pItem)
+{
+	if (nullptr == pItem)
+	{
+		return;
+	}
+
+	for (QTreeWidgetItem* pParentItem = pItem->parent(); nullptr != pParentItem; pParentItem = pParentItem->parent())
+	{
+		pParentItem->setExpanded(true);
+	}
+	pItem->setExpanded(true);
+	setCurrentItem(pItem);
+	scrollToItem(pItem);
+	CSpyIndicatorWnd::showWnd(itemArea(pItem), false);
 }
 
 template<class T>

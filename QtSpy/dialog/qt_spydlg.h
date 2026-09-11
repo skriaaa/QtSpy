@@ -9,8 +9,11 @@
 #include <QSignalSpy>
 #include <QGraphicsScene>
 #include <QGraphicsItem>
+#include <QPointer>
 #include <map>
 class QListView;
+class QCheckBox;
+class QHBoxLayout;
 class CXDialog : public QDialog {
 public:
 	CXDialog(QWidget* parent) : QDialog(parent) {
@@ -144,18 +147,27 @@ protected:
 
 class CLogTraceWnd :public CXDialog {
 public:
-	CLogTraceWnd(QWidget* parent = nullptr);
+	CLogTraceWnd(QWidget* parent = nullptr, bool bShowBreakCheck = true);
 	bool AddInfo(QString strInfo);
 private:
 	void initWidgets();
+	void appendPendingLog(QString strInfo, int nGeneration);
+	void flushPendingLogs();
+protected:
+	QCheckBox* createBreakCheck();
 public:
 	QStringListModel m_listModel;
 	QListView*		 m_listView;
+	QHBoxLayout* m_pControlLayout{ nullptr };
+	QTimer m_timerFlushLog;
+	QStringList m_listPendingLog;
+	int m_nLogGeneration{ 0 };
 	QStringList m_arrStrHas;
 	QStringList m_arrStrNo;
 	int		m_nCount{ 0 };
 	bool	m_bTrace{ true };
 	bool	m_bOnlyLog{ false };
+	bool	m_bBreakOnTrace{ false };
 };
 
 class CEventTraceWnd;
@@ -219,10 +231,12 @@ class CSpyMainWindow;
 class CFindWnd : public CXDialog{
 public:
 	CFindWnd(CSpyMainWindow* parent = nullptr);
+	CFindWnd(QTreeWidget* pTree, QWidget* parent);
 	~CFindWnd();
 protected:
 	void initWidget();
 protected:
+	QPointer<QTreeWidget> m_pTargetTree;
 	QList<QTreeWidgetItem*> m_arrTargetItem;
 	int m_nCurrentIndex{ 0 };
 };
