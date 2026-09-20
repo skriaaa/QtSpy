@@ -15,6 +15,7 @@
 #include <QCheckBox>
 #include <QRadioButton>
 #include <QMenuBar>
+#include <QKeySequence>
 #include <QContextMenuEvent>
 #include <QSysInfo>
 #include <QDebug>
@@ -32,6 +33,7 @@
 #include <QMessageBox>
 #include <QMetaMethod>
 #include <QTime>
+#include <QTimer>
 #include <fstream>
 #include <QSignalSpy>
 #include <QThread>
@@ -72,6 +74,7 @@ void CSpyMainWindow::initWindow()
 	setObjectName(MAIN_WINDOW);
 	setLayout(new QVBoxLayout());
 	layout()->setMargin(1);
+	layout()->setSpacing(0);
 	setWindowFlags(windowFlags() | Qt::WindowMinimizeButtonHint | Qt::WindowMaximizeButtonHint | Qt::WindowContextHelpButtonHint);
 	setAttribute(Qt::WA_DeleteOnClose);
 	setAttribute(Qt::WA_QuitOnClose, false);
@@ -118,6 +121,33 @@ void CSpyMainWindow::initSpyTree()
 {
 	m_pTree = new CWidgetSpyTree;
 	layout()->addWidget(m_pTree);
+
+	// 底部信息栏: 捕获控件(树内节点) / 进程控件(进程内全部 QWidget)
+	// 颜色唯一来源 QtSpyTheme
+	m_pStatusInfo = new QLabel(this);
+	m_pStatusInfo->setStyleSheet(QStringLiteral("color: %1; padding: 2px 4px;")
+		.arg(QtSpyTheme::palette().textSecondary.name()));
+	dynamic_cast<QVBoxLayout*>(layout())->addWidget(m_pStatusInfo);
+	updateStatusInfo();
+
+	// 进程控件数不受本窗口控制(目标程序随时增删), 定时刷新兜底;
+	// 捕获/刷新/清空路径上另有即时刷新
+	m_pStatusTimer = new QTimer(this);
+	m_pStatusTimer->setInterval(1000);
+	QObject::connect(m_pStatusTimer, &QTimer::timeout, this, &CSpyMainWindow::updateStatusInfo);
+	m_pStatusTimer->start();
+}
+
+void CSpyMainWindow::updateStatusInfo()
+{
+	if (nullptr == m_pStatusInfo)
+	{
+		return;
+	}
+
+	m_pStatusInfo->setText(QString("捕获控件：%1个    进程控件：%2个")
+		.arg(nullptr != m_pTree ? m_pTree->currentCount() : 0)
+		.arg(qApp->allWidgets().count()));
 }
 
 void CSpyMainWindow::clearSpyTree()
@@ -125,6 +155,7 @@ void CSpyMainWindow::clearSpyTree()
 	m_pSpyWidget = nullptr;
 	m_pSpyViewItem = nullptr;
 	m_pTree->clearContent();
+	updateStatusInfo();
 }
 
 bool CSpyMainWindow::selfEventFilter(QObject* watched, QEvent* event)
@@ -195,7 +226,7 @@ bool CSpyMainWindow::selfEventFilter(QObject* watched, QEvent* event)
 					break;
 			}
 
-			// 抓取结束, 把主窗口置顶 (覆盖监控/鼠标查找/ALT+E 三种入口)
+			// 抓取结束, 把主窗口置顶 (覆盖监控/鼠标定位/ALT+E 三种入口)
 			if (!isVisible())
 			{
 				showCenter();           // 复用既有: show + raise + 居中
@@ -268,21 +299,23 @@ void CSpyMainWindow::initMenuBar()
 #endif
 
 	QMenuBar* menuBar = new QMenuBar();
-	QAction* actionSpyTarget = new QAction("监控");
+	// 快捷键标注进菜单文字: QMenuBar 顶层动作不显示 QAction 快捷键(仅下拉 QMenu 会显示), 必须写入文本。
+	// Alt+E/Alt+Q 由 CSpyWndManager 的 qApp 级过滤器全局接管(不依赖 QtSpy 窗口焦点), 菜单仅标注不重复挂;
+	// F5/Ctrl+F 为新增, 走 QAction::setShortcut(默认 WindowShortcut: QtSpy 主窗有焦点才触发, 不串进目标程序)
+	QAction* actionSpyTarget = new QAction("捕捉 (Alt+E)");
 	QObject::connect(actionSpyTarget, &QAction::triggered, [&]() {
 		findTarget();
 		});
-	QAction* actionReload = new QAction("重载");
+	QAction* actionReload = new QAction("刷新 (F5)");
+	actionReload->setShortcut(QKeySequence(Qt::Key_F5));
 	QObject::connect(actionReload, &QAction::triggered, [&]() {
 		setTreeTarget(m_pSpyWidget);
 		});
-	QAction* actionNameSearch = new QAction("名称查找");
-	QObject::connect(actionNameSearch, &QAction::triggered, [&]() {
+	QAction* actionFind = new QAction("查找 (Ctrl+F)");
+	actionFind->setShortcut(QKeySequence(QStringLiteral("Ctrl+F")));
+	actionFind->setToolTip("按名称或屏幕拾取定位目标在当前控件树中的位置");
+	QObject::connect(actionFind, &QAction::triggered, [&]() {
 		searchSpyTreeByName();
-		});
-	QAction* actionCursorSearch = new QAction("鼠标查找");
-	QObject::connect(actionCursorSearch, &QAction::triggered, [&]() {
-		searchSpyTreeByCursor();
 		});
 	QAction* actionCursorLocate = new QAction("屏幕坐标");
 	QObject::connect(actionCursorLocate, &QAction::triggered, [&]() {
@@ -302,12 +335,6 @@ void CSpyMainWindow::initMenuBar()
 
 
 	QMenu* menuDebug = new QMenu("调试", this);
-	QAction* actionStatusInfo = new QAction("状态信息");
-	QObject::connect(actionStatusInfo, &QAction::triggered, [&]() {
-		showStatusInfo();
-		});
-	menuDebug->addAction(actionStatusInfo);
-
 	QAction* actionMem = new QAction("内存监控");
 	QObject::connect(actionMem, &QAction::triggered, [=]() {
 		showMemoryMonitor();
@@ -337,14 +364,15 @@ void CSpyMainWindow::initMenuBar()
 	//}
 
 	menuBar->addAction(actionSpyTarget);
+	menuBar->addAction(actionFind);
 	menuBar->addAction(actionReload);
-	menuBar->addAction(actionNameSearch);
-	menuBar->addAction(actionCursorSearch);
 	//menuBar->addAction(actionCursorLocate);
 	//menuBar->addMenu(menuSetting);
 	//menuBar->addMenu(menuSystem);
 	menuBar->addMenu(menuDebug);
 	//menuBar->addMenu(menuColor);
+	// 挂菜单栏动作浮窗提示(查找)
+	new CMenuBarTooltipFilter(menuBar);
 	layout()->setMenuBar(menuBar);
 }
 
@@ -381,6 +409,7 @@ bool CSpyMainWindow::setTreeTarget(QGraphicsItem* target)
 	m_pSpyViewItem = target;
 	m_pSpyWidget = nullptr;
 	tree()->setTreeTarget(target);
+	updateStatusInfo();
 
 	if (nullptr != dynamic_cast<QObject*>(target))
 	{
@@ -394,6 +423,7 @@ bool CSpyMainWindow::setTreeTarget(QWidget* target)
 	m_pSpyWidget = target;
 	m_pSpyViewItem = nullptr;
 	tree()->setTreeTarget(target);
+	updateStatusInfo();
 
 	connect(target, &QObject::destroyed, this, &CSpyMainWindow::clearSpyTree);
 	return true;
@@ -423,7 +453,7 @@ bool CSpyMainWindow::showSystemInfo()
 		}
 	}
 
-	pInfo->setWindowTitle("系统信息");
+	pInfo->setWindowTitle("QtSpy · 系统信息");
 	pInfo->AddAttribute("程序构建时CPU架构", QSysInfo::buildCpuArchitecture());
 	pInfo->AddAttribute("程序运行时CPU架构", QSysInfo::currentCpuArchitecture());
 	pInfo->AddAttribute("程序构建时ABI规范", QSysInfo::buildAbi());
@@ -445,13 +475,6 @@ bool CSpyMainWindow::showSystemInfo()
 }
 
 
-bool CSpyMainWindow::showStatusInfo()
-{
-	CStatusInfoWnd* pInfo = new CStatusInfoWnd(this);
-	pInfo->showOnTop();
-	return true;
-}
-
 bool CSpyMainWindow::showMemoryMonitor()
 {
 	CMemoryMonitorDlg* pMemMonitorDlg = new CMemoryMonitorDlg(this);
@@ -471,16 +494,6 @@ bool CSpyMainWindow::searchSpyTreeByName()
 {
 	CFindWnd* pFindWnd = new CFindWnd(this);
 	pFindWnd->show();
-	return true;
-}
-
-
-bool CSpyMainWindow::searchSpyTreeByCursor()
-{
-	m_eCursorAction = EScreenMouseAction::SearchWidget;
-	grabMouse();
-	installEventFilter(this);
-	QApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
 	return true;
 }
 

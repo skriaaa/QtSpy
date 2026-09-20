@@ -1,4 +1,5 @@
 #include "MemoryMonitorDlg.h"
+#include "theme/QtSpyTheme.h"
 #include "utils/ProcessInfo.h"
 #include "utils/AllocProfiler.h"
 #include <QVBoxLayout>
@@ -110,10 +111,10 @@ protected:
 		QPainter p(this);
 		p.setRenderHint(QPainter::Antialiasing);
 		QRect r = rect().adjusted(0, 0, -1, -1);
-		p.fillRect(r, Qt::black);
+		p.fillRect(r, QtSpyTheme::palette().contentBg);
 		if (!m_model || m_model->size() < 1)
 		{
-			p.setPen(Qt::gray);
+			p.setPen(QtSpyTheme::palette().textSecondary);
 			p.drawText(r, Qt::AlignCenter, "无数据");
 			return;
 		}
@@ -127,7 +128,7 @@ protected:
 		if (m_baseline > 0 && m_baseline <= vmax)
 		{
 			int y = r.top() + r.height() - int(quint64(r.height()) * m_baseline / vmax);
-			p.setPen(QPen(QColor(120, 120, 120, 180), 1, Qt::DashLine));
+			p.setPen(QPen(QColor(QtSpyTheme::palette().border), 1, Qt::DashLine));
 			p.drawLine(r.left(), y, r.right(), y);
 		}
 
@@ -141,11 +142,11 @@ protected:
 			int y = r.top() + r.height() - int(quint64(r.height()) * v / vmax);
 			if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
 		}
-		p.setPen(QPen(QColor(80, 200, 120), 2));
+		p.setPen(QPen(QColor(QtSpyTheme::palette().accent), 2));
 		p.drawPath(path);
 
 		// 坐标标注
-		p.setPen(Qt::gray);
+		p.setPen(QtSpyTheme::palette().textSecondary);
 		p.drawText(r.adjusted(4, 2, 0, 0), Qt::AlignTop | Qt::AlignLeft, ProcessInfo::formatBytes(vmax));
 		p.drawText(r.adjusted(4, 0, 0, -2), Qt::AlignBottom | Qt::AlignLeft, "0");
 	}
@@ -203,9 +204,9 @@ public:
 CMemoryMonitorDlg::CMemoryMonitorDlg(QWidget* parent /*= nullptr*/)
 	: CXDialog(parent)
 {
-	setWindowTitle("内存监控");
+	setWindowTitle("QtSpy · 内存监控");
 	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowFlags(windowFlags() | Qt::Tool | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
+	setWindowFlags(windowFlags() | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
 	resize(816, 520);
 	initWidgets();
 }
@@ -283,6 +284,7 @@ void CMemoryMonitorDlg::initWidgets()
 	});
 	usageCtrl->addWidget(m_btnUsageStart);
 	m_btnUsageReset = new QPushButton("重置");
+	m_btnUsageReset->setProperty("spyClass", "danger");  // QSS 属性选择器: 红字危险按钮
 	connect(m_btnUsageReset, &QPushButton::clicked, this, [this]() {
 		quint64 cur = ProcessInfo::queryProcessCurrentMemory();
 		m_baselinePrivate = cur;
@@ -557,9 +559,9 @@ void CMemoryMonitorDlg::showSymbolDetailDialog(const QString& symbol)
 		if (v.symbol == symbol)
 			match.append(v);
 
-	auto* dlg = new QDialog(this);
+	auto* dlg = new CXDialog(this);  // 用 CXDialog 构造以挂载主题
 	dlg->setAttribute(Qt::WA_DeleteOnClose);
-	dlg->setWindowTitle(QString("符号明细 - %1").arg(symbol));
+	dlg->setWindowTitle(QString("QtSpy · 符号明细 - %1").arg(symbol));
 	dlg->resize(700, 400);
 	auto* lay = new QVBoxLayout(dlg);
 
@@ -607,9 +609,9 @@ void CMemoryMonitorDlg::showSymbolDetailDialog(const QString& symbol)
 void CMemoryMonitorDlg::showBacktraceDialog(quint64 stackHash)
 {
 	QVector<AllocProfiler::FrameInfo> frames = AllocProfiler::backtraceForSite(stackHash);
-	auto* dlg = new QDialog(this);
+	auto* dlg = new CXDialog(this);  // 用 CXDialog 构造以挂载主题
 	dlg->setAttribute(Qt::WA_DeleteOnClose);
-	dlg->setWindowTitle(QString("调用回溯 (0x%1)").arg(stackHash, 0, 16));
+	dlg->setWindowTitle(QString("QtSpy · 调用回溯 (0x%1)").arg(stackHash, 0, 16));
 	dlg->resize(560, 360);
 	auto* lay = new QVBoxLayout(dlg);
 	auto* list = new QListWidget(dlg);

@@ -20,7 +20,8 @@ CStyleEditWnd::CStyleEditWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent)
 {
 	m_pTargetWidget = nullptr;
 	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowFlags(windowFlags() | Qt::Tool | Qt::WindowMinMaxButtonsHint);
+	setWindowFlags(windowFlags() | Qt::WindowMinMaxButtonsHint);
+	resize(660, 400);
 	initWidgets();
 }
 
@@ -89,7 +90,8 @@ void CStyleEditWnd::showKeys()
 	static QDialog* dlgKeys = nullptr;
 	if(dlgKeys == nullptr)
 	{
-		dlgKeys = new QDialog;
+		dlgKeys = new CXDialog(nullptr);
+		dlgKeys->setWindowTitle("QtSpy · QSS 关键字");
 		dlgKeys->setWindowFlag(Qt::WindowStaysOnTopHint);
 		dlgKeys->setAttribute(Qt::WA_DeleteOnClose, false);
 		dlgKeys->setLayout(new QHBoxLayout());

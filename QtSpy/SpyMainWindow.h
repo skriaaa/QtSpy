@@ -2,6 +2,8 @@
 #include "dialog/qt_spydlg.h"
 class CWidgetSpyTree;
 class QGraphicsItem;
+class QLabel;
+class QTimer;
 enum class EScreenMouseAction {
 	None,
 	SearchWidget,
@@ -34,21 +36,22 @@ private:
 	void initMenuBar();
 	void initSpyTree();
 	void clearSpyTree();
+	void updateStatusInfo();
 	bool selfEventFilter(QObject* object, QEvent* event);
 	void locateCursorWidget(QPoint pt);
 
 	bool showSystemInfo();
-	bool showStatusInfo();
 	bool showMemoryMonitor();
 	bool showSystemFont();
 	bool searchSpyTreeByName();
-	bool searchSpyTreeByCursor();
 	bool showCursorLocate();
 	bool findTarget();
 	bool checkColor();
 
 private:
 	CWidgetSpyTree* m_pTree{ nullptr };
+	QLabel* m_pStatusInfo{ nullptr };
+	QTimer* m_pStatusTimer{ nullptr };
 	QWidget* m_pSpyWidget{ nullptr };
 	QGraphicsItem* m_pSpyViewItem{ nullptr };
 	EScreenMouseAction m_eCursorAction = EScreenMouseAction::None;

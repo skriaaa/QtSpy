@@ -3,6 +3,8 @@
 #include <QMenu>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QGridLayout>
+#include <QGroupBox>
 #include <QTreeWidget>
 #include <QTreeView>
 #include <QTableWidget>
@@ -16,6 +18,8 @@
 #include <QCheckBox>
 #include <QRadioButton>
 #include <QMenuBar>
+#include <QHelpEvent>
+#include <QToolTip>
 #include <QContextMenuEvent>
 #include <QSysInfo>
 #include <QDebug>
@@ -68,12 +72,46 @@ namespace
 	}
 }
 
-void CXDialog::showEvent(QShowEvent* event)
+bool CXDialog::event(QEvent* event)
 {
-	if (styleSheet().isEmpty())
+	// 目标程序可能在任意时刻改全局 QSS/字体, 触发本窗口 StyleChange/FontChange;
+	// 重新 apply 恢复主题。apply() 幂等(QSS 未变不 set)且带重入保护, 不会递归。
+	// 字体不走 apply: 由 QSS font 规则经 QStyleSheetStyle 自动维持(含自愈);
+	// 若在 apply 里 setFont 会与 QSS 字体机制打架造成 FontChange 无限递归(栈溢出)。
+	// CSpyIndicatorWnd 指示框完全自绘(paintEvent, 不绘制 QSS 背景),
+	// StyleChange 重挂主题 QSS 对其高亮效果无影响。
+	if ((QEvent::StyleChange == event->type()) || (QEvent::FontChange == event->type()))
 	{
-		setStyleSheet(normalStyleSheet());
+		QtSpyTheme::apply(this);
 	}
+	return QDialog::event(event);
+}
+
+CMenuBarTooltipFilter::CMenuBarTooltipFilter(QMenuBar* pMenuBar) : QObject(pMenuBar)
+{
+	if (nullptr != pMenuBar)
+	{
+		pMenuBar->installEventFilter(this);
+	}
+}
+
+bool CMenuBarTooltipFilter::eventFilter(QObject* watched, QEvent* event)
+{
+	if (QEvent::ToolTip == event->type())
+	{
+		auto pMenuBar = qobject_cast<QMenuBar*>(watched);
+		auto pHelpEvent = dynamic_cast<QHelpEvent*>(event);
+		if (nullptr != pMenuBar && nullptr != pHelpEvent)
+		{
+			QAction* pAction = pMenuBar->actionAt(pHelpEvent->pos());
+			if (nullptr != pAction && !pAction->toolTip().isEmpty())
+			{
+				QToolTip::showText(pHelpEvent->globalPos(), pAction->toolTip(), pMenuBar);
+				return true;
+			}
+		}
+	}
+	return QObject::eventFilter(watched, event);
 }
 
 CSpyIndicatorWnd::CSpyIndicatorWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent),
@@ -81,8 +119,12 @@ m_Timer(QTimer(this)), m_nSpanPeriod(0)
 {
 	setAttribute(Qt::WA_DeleteOnClose);
 	setAttribute(Qt::WA_TransparentForMouseEvents);
-	setWindowFlags(windowFlags() | Qt::Tool | Qt::FramelessWindowHint | Qt::WindowMinMaxButtonsHint);
-	setStyleSheet("border: 1px solid rgba(0, 255, 225, 255); background:rgba(255, 255, 255, 255);");
+	setAttribute(Qt::WA_TranslucentBackground);
+	// WindowStaysOnTopHint: 指示框要压过 QtSpy 各置顶窗口(目标被置顶窗口遮挡时高亮仍可见)
+	setWindowFlags(windowFlags() | Qt::Tool | Qt::FramelessWindowHint | Qt::WindowMinMaxButtonsHint | Qt::WindowStaysOnTopHint);
+	// 高亮全部走 paintEvent 自绘, 不用 QSS:
+	// 透明背景下 QSS 背景规则会画出实心底色; 且 StyleChange 重挂主题 QSS
+	// 也不影响自绘效果(paintEvent 不绘制 QSS 背景)
 
 	m_Timer.setInterval(100);
 	QObject::connect(&m_Timer, &QTimer::timeout, [&]() {
@@ -92,7 +134,7 @@ m_Timer(QTimer(this)), m_nSpanPeriod(0)
 		}
 		else
 		{
-			setWindowOpacity((float)m_nSpanPeriod / 60);
+			// 渐弱走填充/边框 alpha(见 paintEvent), 不动 windowOpacity —— 曲线与旧版一致
 			repaint();
 			m_nSpanPeriod-=2;
 		}
@@ -119,15 +161,16 @@ void CSpyIndicatorWnd::showWnd(QRect rcArea, bool bHold)
 
 void CSpyIndicatorWnd::show(bool bHold)
 {
-	setWindowOpacity(0.4);
 	if(!bHold)
 	{
+		// 渐弱曲线与旧版完全一致: 从等效 0.5 起(比驻留略亮, 旧版手感), 15 步 x 100ms 衰减到 0
 		m_nSpanPeriod = 30;
 		m_Timer.stop();
 		m_Timer.start();
 	}
 	else
 	{
+		m_nSpanPeriod = 0;   // 驻留: 填充/边框 alpha 102(等效旧版整窗 0.4)
 		m_Timer.stop();
 	}
 
@@ -135,29 +178,85 @@ void CSpyIndicatorWnd::show(bool bHold)
 	raise();
 }
 
+void CSpyIndicatorWnd::paintEvent(QPaintEvent* event)
+{
+	Q_UNUSED(event);
+	// 与旧版观感完全一致(旧版 = 整窗透明度 x 白底/青边实色):
+	// 驻留: 等效 0.4 -> alpha 102; 渐弱: 等效 0.5 -> 0, alpha = 255 * span / 60
+	// 颜色唯一来源 QtSpyTheme
+	const int nAlpha = (m_nSpanPeriod > 0) ? (255 * m_nSpanPeriod / 60) : 102;
+	QPainter painter(this);
+	const SpyPalette& palette = QtSpyTheme::palette();
+	QColor clFill = palette.contentBg;      // 白
+	clFill.setAlpha(nAlpha);
+	painter.fillRect(rect(), clFill);
+	QColor clBorder = palette.spyHighlight; // 青
+	clBorder.setAlpha(nAlpha);
+	QPen pen(clBorder);
+	pen.setWidth(1);
+	painter.setPen(pen);
+	painter.drawRect(rect().adjusted(0, 0, -1, -1));
+}
+
+// fixed(min==max)的控件, setGeometry 会被最小/最大尺寸钳制, 缩放完全无效;
+// 落几何前把确实构成钳制的边界放开到新尺寸(只放宽不收窄, 原约束不丢):
+// 例: fixed 100x100 缩到 90 -> min 变 90、max 仍 100, 缩回 100 无需再动约束
+void CMoveOrScaleWidgetWnd::scaleGeometry(const QRect& rc)
+{
+	QSize szMin = m_pTargetWidget->minimumSize();
+	QSize szMax = m_pTargetWidget->maximumSize();
+
+	if (rc.width() < szMin.width())
+	{
+		m_pTargetWidget->setMinimumWidth(rc.width());
+	}
+	else if (rc.width() > szMax.width())
+	{
+		m_pTargetWidget->setMaximumWidth(rc.width());
+	}
+	if (rc.height() < szMin.height())
+	{
+		m_pTargetWidget->setMinimumHeight(rc.height());
+	}
+	else if (rc.height() > szMax.height())
+	{
+		m_pTargetWidget->setMaximumHeight(rc.height());
+	}
+
+	m_pTargetWidget->setGeometry(rc);
+}
+
 CMoveOrScaleWidgetWnd::CMoveOrScaleWidgetWnd(QWidget* parent /*= nullptr*/) : CXDialog(parent)
 {
 	setAttribute(Qt::WA_DeleteOnClose);
-	this->setWindowTitle("移动&缩放");
+	this->setWindowTitle("QtSpy · 移动&缩放");
 	m_pEditMoveStep = new QLineEdit();
 	m_pEditScaleStep = new QLineEdit();
-	auto layout = new QVBoxLayout();
-	auto layout1 = new QHBoxLayout();
-	auto btnMoveUp = new QPushButton("向上移动");
-	auto btnMoveDown = new QPushButton("向下移动");
-	auto btnMoveLeft = new QPushButton("向左移动");
-	auto btnMoveRight = new QPushButton("向右移动");
-	layout1->addWidget(m_pEditMoveStep);
-	layout1->addWidget(btnMoveUp);
-	layout1->addWidget(btnMoveDown);
-	layout1->addWidget(btnMoveLeft);
-	layout1->addWidget(btnMoveRight);
+	m_pEditMoveStep->setAlignment(Qt::AlignCenter);
+	m_pEditScaleStep->setAlignment(Qt::AlignCenter);
 	m_pEditMoveStep->setText("1");
+	m_pEditScaleStep->setText("1");
 	QObject::connect(m_pEditMoveStep, &QLineEdit::textChanged, [&]() {
 		if (m_pEditMoveStep) {
 			m_nMoveStep = m_pEditMoveStep->text().toInt();
 		}
 		});
+	QObject::connect(m_pEditScaleStep, &QLineEdit::textChanged, [&]() {
+		if (m_pEditScaleStep) {
+			m_nScaleStep = m_pEditScaleStep->text().toInt();
+		}
+		});
+
+	// 十字布局: 输入框居中, 上/下/左/右按钮环绕其四周, 统一宽度 46px
+	constexpr int CROSS_CTRL_WIDTH = 46;
+	auto btnMoveUp = new QPushButton("上");
+	auto btnMoveDown = new QPushButton("下");
+	auto btnMoveLeft = new QPushButton("左");
+	auto btnMoveRight = new QPushButton("右");
+	btnMoveUp->setFixedWidth(CROSS_CTRL_WIDTH);
+	btnMoveDown->setFixedWidth(CROSS_CTRL_WIDTH);
+	btnMoveLeft->setFixedWidth(CROSS_CTRL_WIDTH);
+	btnMoveRight->setFixedWidth(CROSS_CTRL_WIDTH);
 	QObject::connect(btnMoveUp, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
 			QRect rc = m_pTargetWidget->geometry();
@@ -198,52 +297,72 @@ CMoveOrScaleWidgetWnd::CMoveOrScaleWidgetWnd(QWidget* parent /*= nullptr*/) : CX
 			m_pTargetItem->setY(m_pTargetItem->x() + 1);
 		}
 		});
-	auto layout2 = new QHBoxLayout();
-	auto btnScaleUp = new QPushButton("移动上边界");
-	auto btnScaleDown = new QPushButton("移动下边界");
-	auto btnScaleLeft = new QPushButton("移动左边界");
-	auto btnScaleRight = new QPushButton("移动右边界");
-	layout2->addWidget(m_pEditScaleStep);
-	layout2->addWidget(btnScaleUp);
-	layout2->addWidget(btnScaleDown);
-	layout2->addWidget(btnScaleLeft);
-	layout2->addWidget(btnScaleRight);
-	m_pEditScaleStep->setText("1");
-	QObject::connect(m_pEditScaleStep, &QLineEdit::textChanged, [&]() {
-		if (m_pEditScaleStep) {
-			m_nScaleStep = m_pEditScaleStep->text().toInt();
-		}
-		});
+	auto gridMove = new QGridLayout();
+	gridMove->addWidget(btnMoveUp, 0, 2);
+	gridMove->addWidget(btnMoveLeft, 1, 1);
+	gridMove->addWidget(m_pEditMoveStep, 1, 2);
+	gridMove->addWidget(btnMoveRight, 1, 3);
+	gridMove->addWidget(btnMoveDown, 2, 2);
+	// 统一 46px; 两侧空列(col0/col4)吸收多余宽度, 十字整体居中且按钮不被拉伸
+	m_pEditMoveStep->setFixedWidth(CROSS_CTRL_WIDTH);
+	gridMove->setColumnStretch(0, 1);
+	gridMove->setColumnStretch(4, 1);
+	auto groupMove = new QGroupBox("移动");
+	groupMove->setLayout(gridMove);
+
+	auto btnScaleUp = new QPushButton("上");
+	auto btnScaleDown = new QPushButton("下");
+	auto btnScaleLeft = new QPushButton("左");
+	auto btnScaleRight = new QPushButton("右");
+	btnScaleUp->setFixedWidth(CROSS_CTRL_WIDTH);
+	btnScaleDown->setFixedWidth(CROSS_CTRL_WIDTH);
+	btnScaleLeft->setFixedWidth(CROSS_CTRL_WIDTH);
+	btnScaleRight->setFixedWidth(CROSS_CTRL_WIDTH);
 	QObject::connect(btnScaleUp, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
+			// 上/左: 对应边界向外(上方/左侧)平移 n 像素, 与下/右语义一致
 			QRect rc = m_pTargetWidget->geometry();
-			rc.adjust(0, m_nScaleStep, 0, 0);
-			m_pTargetWidget->setGeometry(rc);
+			rc.adjust(0, -m_nScaleStep, 0, 0);
+			scaleGeometry(rc);
 		}
 		});
 	QObject::connect(btnScaleDown, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
 			QRect rc = m_pTargetWidget->geometry();
 			rc.adjust(0, 0, 0, m_nScaleStep);
-			m_pTargetWidget->setGeometry(rc);
+			scaleGeometry(rc);
 		}
 		});
 	QObject::connect(btnScaleLeft, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
 			QRect rc = m_pTargetWidget->geometry();
-			rc.adjust(m_nScaleStep, 0, 0, 0);
-			m_pTargetWidget->setGeometry(rc);
+			rc.adjust(-m_nScaleStep, 0, 0, 0);
+			scaleGeometry(rc);
 		}
 		});
 	QObject::connect(btnScaleRight, &QPushButton::clicked, [&] {
 		if (m_pTargetWidget) {
 			QRect rc = m_pTargetWidget->geometry();
 			rc.adjust(0, 0, m_nScaleStep, 0);
-			m_pTargetWidget->setGeometry(rc);
+			scaleGeometry(rc);
 		}
 		});
-	layout->addLayout(layout1);
-	layout->addLayout(layout2);
+	auto gridScale = new QGridLayout();
+	gridScale->addWidget(btnScaleUp, 0, 2);
+	gridScale->addWidget(btnScaleLeft, 1, 1);
+	gridScale->addWidget(m_pEditScaleStep, 1, 2);
+	gridScale->addWidget(btnScaleRight, 1, 3);
+	gridScale->addWidget(btnScaleDown, 2, 2);
+	m_pEditScaleStep->setFixedWidth(CROSS_CTRL_WIDTH);
+	gridScale->setColumnStretch(0, 1);
+	gridScale->setColumnStretch(4, 1);
+	auto groupScale = new QGroupBox("缩放");
+	groupScale->setLayout(gridScale);
+
+	// 左侧移动, 右侧缩放
+	auto layout = new QHBoxLayout();
+	layout->addWidget(groupMove);
+	layout->addWidget(groupScale);
 	this->setLayout(layout);
 }
 
@@ -329,7 +448,13 @@ void CSignalSpyWnd::setTargetObject(QObject* target)
 	m_pTargetObject = target;
 	QString strText = objectString(target);
 
-	setWindowTitle(strText);
+	// 窗口定位为"连接"窗口(信号/槽/连接三个 tab), 名称与首个高频 tab 区分
+	setWindowTitle("QtSpy · 连接 " + strText);
+	// 监控日志窗可能已随上次目标创建, 同步刷新其标题
+	if (m_pTraceWnd)
+	{
+		m_pTraceWnd->setWindowTitle("QtSpy · 信号 " + strText);
+	}
 	setContent();
 
 	ParseSignal(target);
@@ -344,16 +469,18 @@ void CSignalSpyWnd::initWidgets()
 {
 	resize(800, 600);
 	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowFlags(windowFlags() | Qt::Popup | Qt::WindowCloseButtonHint | Qt::WindowMinMaxButtonsHint | Qt::CustomizeWindowHint);
+	// 正常对话框标题栏(此前 Qt::Popup+CustomizeWindowHint 是窄标题栏的来源);
+	// 置顶由 showOnTop 的 WindowStaysOnTopHint 负责
 	setLayout(new QVBoxLayout);
 
 	initTableWidget();
 
 	QTabWidget* tab = new QTabWidget;
 	layout()->addWidget(tab);
-	tab->addTab(m_pConnectionTable, "连接");
+	// tab 顺序: 信号 -> 槽 -> 连接 (按使用频率)
 	tab->addTab(m_pSignalTable, "信号");
 	tab->addTab(m_pSlotTable, "槽");
+	tab->addTab(m_pConnectionTable, "连接");
 }
 
 void CSignalSpyWnd::initTableWidget()
@@ -494,13 +621,15 @@ CLogTraceWnd* CSignalSpyWnd::traceWnd()
 	if (m_pTraceWnd == nullptr)
 	{
 		m_pTraceWnd = new CLogTraceWnd();
+		// 与 setTargetObject 内的同步逻辑配合: 懒创建时机也带目标标题
+		m_pTraceWnd->setWindowTitle("QtSpy · 信号 " + objectString(m_pTargetObject));
 	}
 	return m_pTraceWnd;
 }
 
 CStatusInfoWnd::CStatusInfoWnd(QWidget* parent) : CListInfoWnd(parent)
 {
-	setWindowTitle("状态信息");
+	setWindowTitle("QtSpy · 状态信息");
 	UpdateStatusInfo();
 }
 
@@ -528,7 +657,7 @@ CCursorLocateWnd::CCursorLocateWnd(QWidget* parent) :CXDialog(parent)
 	setWindowFlag(Qt::FramelessWindowHint);
 	setWindowFlag(Qt::WindowStaysOnTopHint);
 	setWindowState(Qt::WindowMaximized | Qt::WindowFullScreen);
-	setWindowTitle(QString::fromUtf8("定位鼠标..."));
+	setWindowTitle(QString::fromUtf8("QtSpy · 定位鼠标..."));
 	raise();
 }
 
@@ -566,9 +695,10 @@ void CCursorLocateWnd::mouseMoveEvent(QMouseEvent* event)
 
 CLogTraceWnd::CLogTraceWnd(QWidget* parent /*= nullptr*/, bool bShowBreakCheck /*= true*/) :CXDialog(parent)
 {
+	setWindowTitle("QtSpy · 日志");
 	resize(400, 300);
 	setAttribute(Qt::WA_DeleteOnClose, false);
-	setWindowFlags(windowFlags() | Qt::Tool | Qt::WindowMinMaxButtonsHint);
+	setWindowFlags(windowFlags() | Qt::WindowMinMaxButtonsHint);
 	initWidgets();
 	if (bShowBreakCheck && nullptr != m_pControlLayout)
 	{
@@ -630,28 +760,17 @@ void CLogTraceWnd::initWidgets()
 	});
 	mainLayout->addWidget(m_listView);
 
+	// 列表下方控制行: onlyLog 开关 + 子类追加的控件(触发中断等)
+	// 原 showList/onlyLog 切换按钮删掉, 改为勾选框: 勾选后日志仅落文件不进列表
 	auto control_1 = new QHBoxLayout();
 	m_pControlLayout = control_1;
 	{
-		auto btnClear = new QPushButton("clear");
-		QObject::connect(btnClear, &QPushButton::clicked, [&]() {
-			++m_nLogGeneration;
-			m_listPendingLog.clear();
-			m_timerFlushLog.stop();
-			m_listModel.removeRows(0, m_listModel.rowCount());
-			this->m_nCount = 0;
+		auto checkOnlyLog = new QCheckBox("onlyLog");
+		checkOnlyLog->setToolTip("勾选后日志仅写入文件, 不再进列表");
+		QObject::connect(checkOnlyLog, &QCheckBox::toggled, [this](bool bChecked) {
+			m_bOnlyLog = bChecked;
 			});
-		control_1->addWidget(btnClear);
-		auto btnTrace = new QPushButton("trace");
-		QObject::connect(btnTrace, &QPushButton::clicked, [&]() { m_bTrace = true; });
-		control_1->addWidget(btnTrace);
-		auto btnOnlyLog = new QPushButton("showList");
-		QObject::connect(btnOnlyLog, &QPushButton::clicked, [=]() { 
-			m_bOnlyLog = !m_bOnlyLog; 
-			btnOnlyLog->setText(m_bOnlyLog ? "onlyLog" : "showList"); 
-		});
-
-		control_1->addWidget(btnOnlyLog);
+		control_1->addWidget(checkOnlyLog);
 	}
 
 
@@ -685,9 +804,29 @@ void CLogTraceWnd::initWidgets()
 	control_3->addWidget(new QLabel("no:"));
 	control_3->addWidget(editFilterNo);
 
+	// 底部按钮行: clear / trace 固定 80x30
+	auto control_4 = new QHBoxLayout();
+	{
+		auto btnClear = new QPushButton("clear");
+		btnClear->setFixedSize(80, 30);
+		QObject::connect(btnClear, &QPushButton::clicked, [&]() {
+			++m_nLogGeneration;
+			m_listPendingLog.clear();
+			m_timerFlushLog.stop();
+			m_listModel.removeRows(0, m_listModel.rowCount());
+			this->m_nCount = 0;
+			});
+		control_4->addWidget(btnClear);
+		auto btnTrace = new QPushButton("trace");
+		btnTrace->setFixedSize(80, 30);
+		QObject::connect(btnTrace, &QPushButton::clicked, [&]() { m_bTrace = true; });
+		control_4->addWidget(btnTrace);
+	}
+
 	mainLayout->addLayout(control_1);
 	mainLayout->addLayout(control_2);
 	mainLayout->addLayout(control_3);
+	mainLayout->addLayout(control_4);
 }
 
 void CLogTraceWnd::appendPendingLog(QString strInfo, int nGeneration)
@@ -796,6 +935,35 @@ void CEventTraceWnd::setRunning(bool bRun)
 	m_bRunning = bRun;
 }
 
+void CEventTraceWnd::setTargets(const QList<QObject*>& arrSelf, const QList<QObject*>& arrSubTree)
+{
+	m_arrTargetSelf = arrSelf;
+	m_arrTargetAll = arrSubTree.isEmpty() ? arrSelf : arrSubTree;
+	// 默认只监控目标自身, "包含子组件"勾选后切换到子树全集
+	applyTargets(m_arrTargetSelf);
+}
+
+void CEventTraceWnd::applyTargets(const QList<QObject*>& arrTargets)
+{
+	resetMonitors();
+	for (QObject* pTarget : arrTargets)
+	{
+		MonitorWidget(pTarget);
+	}
+}
+
+void CEventTraceWnd::resetMonitors()
+{
+	for (QObject* pTarget : m_arrMonitorObject)
+	{
+		pTarget->removeEventFilter(this);
+	}
+	m_arrMonitorObject.clear();
+	// CGraphicsItemSpy 析构会 removeSceneEventFilter 并从 scene 移除
+	qDeleteAll(m_hashGraphicsSpy);
+	m_hashGraphicsSpy.clear();
+}
+
 template <typename T>
 bool CEventTraceWnd::AddInfo(T* pTarget, QEvent* event)
 {
@@ -807,14 +975,21 @@ void CEventTraceWnd::initWidget()
 	QHBoxLayout* pLayout = new QHBoxLayout;
 	QPushButton* btnStop = new  QPushButton(m_bRunning ? "runing..." : "stoped");
 	QCheckBox* filter = new QCheckBox("屏蔽事件");
+	QCheckBox* pCheckSub = new QCheckBox("包含子组件");
 	pLayout->addWidget(filter);
+	pLayout->addWidget(pCheckSub);
 	pLayout->addWidget(createBreakCheck());
 	pLayout->addSpacerItem(new QSpacerItem(1 , 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
 	pLayout->addWidget(btnStop);
-	dynamic_cast<QVBoxLayout*>(layout())->addLayout(pLayout);
+	// 插到列表正下方(索引 1): 布局末尾已被 clear/trace 底部按钮行占据
+	dynamic_cast<QVBoxLayout*>(layout())->insertLayout(1, pLayout);
 	connect(filter, &QCheckBox::stateChanged, [this](int state) {
 		m_bFilterEvent = state != Qt::Unchecked;
 		});
+	// 勾选切换监控范围: 目标自身 <-> 子树全部(原"事件跟踪All")
+	connect(pCheckSub, &QCheckBox::toggled, [this](bool bChecked) {
+		applyTargets(bChecked ? m_arrTargetAll : m_arrTargetSelf);
+	});
 	connect(btnStop, &QPushButton::clicked, [=]() {
 		m_bRunning = !m_bRunning;
 		btnStop->setText(m_bRunning ? "runing..." : "stoped");
@@ -925,48 +1100,101 @@ CFindWnd::~CFindWnd()
 
 void CFindWnd::initWidget()
 {
-	QPushButton* pBtnYes = new QPushButton("查找全部");
+	QPushButton* pBtnYes = new QPushButton("查找");
 	QPushButton* pBtnNext = new QPushButton("下一个");
 	QPushButton* pBtnPrev = new QPushButton("上一个");
-	QLineEdit* pEdit = new QLineEdit();
+	QPushButton* pBtnPick = new QPushButton();
+	// 纯图标拾取按钮: 只保留 32x32 一份(槽位自适应缩放)
+	{
+		pBtnPick->setIcon(QIcon(QStringLiteral(":/icons/resource/catch.png")));
+		pBtnPick->setToolTip("屏幕拾取");
+	}
+	m_pEdit = new QLineEdit();
 
-	QObject::connect(pBtnYes, &QPushButton::clicked, [this, pEdit]() {
+	// 查找全部: 记录本次结果的关键字, 供"下一个/上一个"判断输入是否已变化
+	auto fnSearchAll = [this]() {
 		if (m_pTargetTree.isNull())
 		{
 			return;
 		}
 
+		m_strKeyword = m_pEdit->text();
 		m_nCurrentIndex = 0;
-		m_arrTargetItem = m_pTargetTree->findItems(pEdit->text(), Qt::MatchFlag::MatchContains | Qt::MatchRecursive);
+		m_arrTargetItem = m_pTargetTree->findItems(m_strKeyword, Qt::MatchFlag::MatchContains | Qt::MatchRecursive);
 		if (!m_arrTargetItem.empty())
 		{
 			selectTreeItem(m_pTargetTree.data(), m_arrTargetItem.front());
 		}
-	});
-	QObject::connect(pBtnNext, &QPushButton::clicked, [this]() {
-		if (m_arrTargetItem.size() - 1 > m_nCurrentIndex)
+	};
+	// 在结果序列内跳转; 输入框内容与当前结果关键字不一致时, 直接重新查找
+	auto fnJump = [this, fnSearchAll](int nStep) {
+		if (m_pEdit->text() != m_strKeyword)
 		{
-			m_nCurrentIndex++;
+			fnSearchAll();
+			return;
+		}
+		if (m_arrTargetItem.empty())
+		{
+			return;
+		}
+
+		int nIndex = qBound(0, m_nCurrentIndex + nStep, (int)m_arrTargetItem.size() - 1);
+		if (nIndex != m_nCurrentIndex)
+		{
+			m_nCurrentIndex = nIndex;
 			selectTreeItem(m_pTargetTree.data(), m_arrTargetItem[m_nCurrentIndex]);
 		}
-	});
-	QObject::connect(pBtnPrev, &QPushButton::clicked, [this]() {
-		if (m_nCurrentIndex > 0)
-		{
-			m_nCurrentIndex--;
-			selectTreeItem(m_pTargetTree.data(), m_arrTargetItem[m_nCurrentIndex]);
-		}
-	});
+	};
+
+	QObject::connect(pBtnYes, &QPushButton::clicked, fnSearchAll);
+	// 输入框内回车直接查找全部
+	QObject::connect(m_pEdit, &QLineEdit::returnPressed, fnSearchAll);
+	QObject::connect(pBtnNext, &QPushButton::clicked, [fnJump]() { fnJump(1); });
+	QObject::connect(pBtnPrev, &QPushButton::clicked, [fnJump]() { fnJump(-1); });
+
+	// 屏幕拾取: 十字光标点选屏幕上的控件, 定位其在树中的节点(右键取消), 拾取成功即关窗
+	CWidgetSpyTree* pSpyTree = qobject_cast<CWidgetSpyTree*>(m_pTargetTree.data());
+	if (nullptr == pSpyTree)
+	{
+		pBtnPick->setEnabled(false);
+	}
+	else
+	{
+		QObject::connect(pBtnPick, &QPushButton::clicked, [this, pSpyTree]() {
+			CTreeCursorSearchFilter* pFilter = new CTreeCursorSearchFilter(this, pSpyTree);
+			pFilter->setPickedCallback([this]() {
+				// 查找窗自身是拾取宿主, 关窗前先把树所在窗口带回前台
+				if (!m_pTargetTree.isNull() && (nullptr != m_pTargetTree->window()))
+				{
+					m_pTargetTree->window()->raise();
+					m_pTargetTree->window()->activateWindow();
+				}
+				close();
+			});
+			pFilter->start();
+		});
+	}
 
 	auto pLayout = new QHBoxLayout();
-	pLayout->addWidget(new QLabel("对象名称"));
-	pLayout->addWidget(pEdit);
+	pLayout->addWidget(new QLabel("文字查找"));
+	pLayout->addWidget(m_pEdit);
 	pLayout->addWidget(pBtnYes);
 	pLayout->addWidget(pBtnNext);
 	pLayout->addWidget(pBtnPrev);
 
+	QLabel* pLabelHint = new QLabel("点击屏幕上的控件定位其在树中的位置, 右键取消");
+	pLabelHint->setStyleSheet(QStringLiteral("color: %1;").arg(QtSpyTheme::palette().textSecondary.name()));
+	auto pLayoutPick = new QHBoxLayout();
+	pLayoutPick->addWidget(new QLabel("屏幕拾取"));
+	pLayoutPick->addWidget(pBtnPick);
+	pLayoutPick->addSpacing(8);
+	pLayoutPick->addWidget(pLabelHint);
+	pLayoutPick->addStretch();
+
 	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowTitle("查找");
+	setWindowTitle("QtSpy · 查找");
 	setLayout(new QVBoxLayout());
-	dynamic_cast<QVBoxLayout*>(layout())->addLayout(pLayout);
+	auto pMainLayout = dynamic_cast<QVBoxLayout*>(layout());
+	pMainLayout->addLayout(pLayout);
+	pMainLayout->addLayout(pLayoutPick);
 }

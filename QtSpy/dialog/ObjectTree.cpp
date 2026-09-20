@@ -1,14 +1,15 @@
 #include "ObjectTree.h"
+#include "theme/QtSpyTheme.h"
 
 #include <QMenu>
 #include <QEvent>
+#include <QPainter>
+#include <QPaintEvent>
 #include <QLayout>
 #include <QVBoxLayout>
-#include <QAbstractButton>
 #include <QContextMenuEvent>
 #include <QGraphicsView>
 #include <QGraphicsProxyWidget>
-#include <QWindow>
 #include <QDialog>
 #include <QMenuBar>
 #include <QApplication>
@@ -16,8 +17,10 @@
 #include <QPointer>
 #include <QCursor>
 #include <QSize>
+#include <QStringList>
 
 #include "qt_spydlg.h"
+#include "PropertyInspectorDlg.h"
 #include "StyleEditDlg.h"
 #include "publicfunction.h"
 #include "proxyStyle/ProxyStyle.h"
@@ -47,105 +50,12 @@ namespace
 		pWidget->activateWindow();
 	}
 
-	class CTreeCursorSearchFilter : public QObject
-	{
-	public:
-		CTreeCursorSearchFilter(QWidget* pHostWidget, CWidgetSpyTree* pTree)
-			: QObject(pHostWidget)
-			, m_pHostWidget(pHostWidget)
-			, m_pTree(pTree)
-		{
-		}
-
-		~CTreeCursorSearchFilter() override
-		{
-			finish();
-		}
-
-		void start()
-		{
-			if (m_pHostWidget.isNull() || m_pTree.isNull())
-			{
-				deleteLater();
-				return;
-			}
-
-			m_bRunning = true;
-			m_pHostWidget->grabMouse();
-			m_pHostWidget->installEventFilter(this);
-			m_pHostWidget->setMouseTracking(true);
-			QApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
-		}
-
-	protected:
-		bool eventFilter(QObject* pWatched, QEvent* pEvent) override
-		{
-			if (pWatched != m_pHostWidget.data())
-			{
-				return QObject::eventFilter(pWatched, pEvent);
-			}
-
-			switch (pEvent->type())
-			{
-			case QEvent::MouseMove:
-			{
-				QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(pEvent);
-				if ((nullptr != pMouseEvent) && !m_pTree.isNull())
-				{
-					CSpyIndicatorWnd::showWnd(m_pTree->itemAreaAt(pMouseEvent->globalPos()));
-				}
-				return true;
-			}
-			case QEvent::MouseButtonRelease:
-			{
-				QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(pEvent);
-				Qt::MouseButton eButton = (nullptr == pMouseEvent) ? Qt::NoButton : pMouseEvent->button();
-				QPoint ptGlobal = (nullptr == pMouseEvent) ? QPoint() : pMouseEvent->globalPos();
-				finish();
-				if ((Qt::RightButton != eButton) && !m_pTree.isNull())
-				{
-					m_pTree->setCurrentSpyItemAt(ptGlobal);
-				}
-				activateWindow(m_pHostWidget.data());
-				deleteLater();
-				return true;
-			}
-			default:
-				break;
-			}
-
-			return QObject::eventFilter(pWatched, pEvent);
-		}
-
-	private:
-		void finish()
-		{
-			if (!m_bRunning)
-			{
-				return;
-			}
-
-			if (!m_pHostWidget.isNull())
-			{
-				m_pHostWidget->removeEventFilter(this);
-				m_pHostWidget->releaseMouse();
-			}
-			QApplication::restoreOverrideCursor();
-			CSpyIndicatorWnd::instance().hide();
-			m_bRunning = false;
-		}
-
-	private:
-		QPointer<QWidget> m_pHostWidget;
-		QPointer<CWidgetSpyTree> m_pTree;
-		bool m_bRunning = false;
-	};
-
 	QDialog* createSpyTreeDialog(QWidget* pParentWidget, const QString& strTitle, CWidgetSpyTree* pTree)
 	{
-		QDialog* pDialog = new QDialog(pParentWidget);
+		// 用 CXDialog 构造以挂载主题(CXDialog 构造函数内 apply)
+		QDialog* pDialog = new CXDialog(pParentWidget);
 		pDialog->setAttribute(Qt::WA_DeleteOnClose);
-		pDialog->setWindowTitle(strTitle);
+		pDialog->setWindowTitle("QtSpy · " + strTitle);
 
 		pDialog->resize(SPY_TREE_DIALOG_DEFAULT_SIZE);
 
@@ -153,16 +63,14 @@ namespace
 		pLayout->setMargin(1);
 
 		QMenuBar* pMenuBar = new QMenuBar(pDialog);
-		QAction* pActionNameSearch = pMenuBar->addAction("名称查找");
-		QAction* pActionCursorSearch = pMenuBar->addAction("鼠标查找");
-		QObject::connect(pActionNameSearch, &QAction::triggered, [pDialog, pTree]() {
+		QAction* pActionFind = pMenuBar->addAction("查找");
+		pActionFind->setToolTip("按名称或屏幕拾取定位目标在当前控件树中的位置");
+		QObject::connect(pActionFind, &QAction::triggered, [pDialog, pTree]() {
 			CFindWnd* pFindWnd = new CFindWnd(pTree, pDialog);
 			pFindWnd->showOnTop();
 		});
-		QObject::connect(pActionCursorSearch, &QAction::triggered, [pDialog, pTree]() {
-			CTreeCursorSearchFilter* pFilter = new CTreeCursorSearchFilter(pDialog, pTree);
-			pFilter->start();
-		});
+		// 挂菜单栏动作浮窗提示(查找)
+		new CMenuBarTooltipFilter(pMenuBar);
 		pLayout->setMenuBar(pMenuBar);
 		pLayout->addWidget(pTree);
 
@@ -170,12 +78,109 @@ namespace
 	}
 }
 
+CTreeCursorSearchFilter::CTreeCursorSearchFilter(QWidget* pHostWidget, CWidgetSpyTree* pTree)
+	: QObject(pHostWidget)
+	, m_pHostWidget(pHostWidget)
+	, m_pTree(pTree)
+{
+}
+
+CTreeCursorSearchFilter::~CTreeCursorSearchFilter()
+{
+	finish();
+}
+
+void CTreeCursorSearchFilter::setPickedCallback(std::function<void()> callback)
+{
+	m_fnPicked = std::move(callback);
+}
+
+void CTreeCursorSearchFilter::start()
+{
+	if (m_pHostWidget.isNull() || m_pTree.isNull())
+	{
+		deleteLater();
+		return;
+	}
+
+	m_bRunning = true;
+	m_pHostWidget->grabMouse();
+	m_pHostWidget->installEventFilter(this);
+	m_pHostWidget->setMouseTracking(true);
+	QApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
+}
+
+bool CTreeCursorSearchFilter::eventFilter(QObject* pWatched, QEvent* pEvent)
+{
+	if (pWatched != m_pHostWidget.data())
+	{
+		return QObject::eventFilter(pWatched, pEvent);
+	}
+
+	switch (pEvent->type())
+	{
+	case QEvent::MouseMove:
+	{
+		QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(pEvent);
+		if ((nullptr != pMouseEvent) && !m_pTree.isNull())
+		{
+			CSpyIndicatorWnd::showWnd(m_pTree->itemAreaAt(pMouseEvent->globalPos()));
+		}
+		return true;
+	}
+	case QEvent::MouseButtonRelease:
+	{
+		QMouseEvent* pMouseEvent = dynamic_cast<QMouseEvent*>(pEvent);
+		Qt::MouseButton eButton = (nullptr == pMouseEvent) ? Qt::NoButton : pMouseEvent->button();
+		QPoint ptGlobal = (nullptr == pMouseEvent) ? QPoint() : pMouseEvent->globalPos();
+		finish();
+		if ((Qt::RightButton != eButton) && !m_pTree.isNull())
+		{
+			m_pTree->setCurrentSpyItemAt(ptGlobal);
+		}
+		activateWindow(m_pHostWidget.data());
+		deleteLater();
+		// 回调放最后: 拾取成功后通知宿主(如查找窗口"拾取完成即关闭")。
+		// WA_DeleteOnClose 走 deleteLater, 此处回调即便销毁本对象也是延迟到事件循环, 安全。
+		if ((Qt::RightButton != eButton) && m_fnPicked)
+		{
+			m_fnPicked();
+		}
+		return true;
+	}
+	default:
+		break;
+	}
+
+	return QObject::eventFilter(pWatched, pEvent);
+}
+
+void CTreeCursorSearchFilter::finish()
+{
+	if (!m_bRunning)
+	{
+		return;
+	}
+
+	if (!m_pHostWidget.isNull())
+	{
+		m_pHostWidget->removeEventFilter(this);
+		m_pHostWidget->releaseMouse();
+	}
+	QApplication::restoreOverrideCursor();
+	CSpyIndicatorWnd::instance().hide();
+	m_bRunning = false;
+}
+
 inline void CTreeWidgetDelegate::paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
 	QStyledItemDelegate::paint(painter, option, index);
 	QStyleOptionViewItem opt(option);
 	initStyleOption(&opt, index);
-	painter->setPen((opt.text.contains("[hide]") || opt.text.contains("[disabled]")) ? Qt::gray : Qt::black);
+	// [hide]/[disabled] 节点用次级色, 其余主色 —— 颜色唯一来源 QtSpyTheme
+	const SpyPalette& palette = QtSpyTheme::palette();
+	painter->setPen((opt.text.contains("[hide]") || opt.text.contains("[disabled]"))
+		? QPen(palette.textSecondary) : QPen(palette.textPrimary));
 	painter->drawText(opt.rect,  opt.displayAlignment, opt.text);
 }
 
@@ -199,7 +204,40 @@ CWidgetSpyTree::CWidgetSpyTree(QWidget* parent /*= nullptr*/) : QTreeWidget(pare
 }
 CWidgetSpyTree::~CWidgetSpyTree()
 {
-	
+
+}
+
+void CWidgetSpyTree::paintEvent(QPaintEvent* event)
+{
+	QTreeWidget::paintEvent(event);
+	if (topLevelItemCount() > 0)
+	{
+		return;
+	}
+
+	// 空树提示: 快捷键引导 —— 颜色唯一来源 QtSpyTheme
+	// 逐行绘制, 两行按行首左对齐, 整块水平居中
+	const QStringList arrHint = {
+		QStringLiteral("1、Alt + Q : 展示窗口并居中"),
+		QStringLiteral("2、Alt + E : 进入捕捉状态"),
+	};
+	QPainter painter(viewport());
+	painter.setPen(QtSpyTheme::palette().textSecondary);
+	const QFontMetrics fm = painter.fontMetrics();
+	int nMaxWidth = 0;
+	for (const QString& strLine : arrHint)
+	{
+		nMaxWidth = qMax(nMaxWidth, fm.horizontalAdvance(strLine));
+	}
+	QRect rc = viewport()->rect();
+	rc.setBottom(rc.bottom() - rc.height() / 6);
+	const int nX = rc.center().x() - nMaxWidth / 2;
+	int nY = rc.center().y() - arrHint.size() * fm.lineSpacing() / 2;
+	for (const QString& strLine : arrHint)
+	{
+		painter.drawText(QPoint(nX, nY + fm.ascent()), strLine);
+		nY += fm.lineSpacing();
+	}
 }
 
 bool CWidgetSpyTree::setTreeTarget(QGraphicsItem* target)
@@ -229,6 +267,9 @@ bool CWidgetSpyTree::setTreeTarget(QObject* target)
 		CTreeWidgetItem* root = new CTreeWidgetItem;
 		addTopLevelItem(root);
 		AddSubSpyNode(OTo<QWidget>(target), root);
+		// 设定目标/刷新后自动展开第一级, 直接看到目标的子节点;
+		// GraphicsView 内组件走 setTreeTarget(QGraphicsItem*) 重载, 保持不展开
+		root->setExpanded(true);
 	}
 	return true;
 }
@@ -321,10 +362,9 @@ void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 	if (itemData<QLayout>(pItem))
 	{
 		QMenu menuLayout(this);
+		// 布局节点: 属性检查(含基础信息分组) + 启用/禁用; 定位走双击, 父组件对布局无意义
 		QList<ESpyTreeMenuAction> arrAction = {
-			ESpyTreeMenuAction::spyParent,
-			ESpyTreeMenuAction::locate,
-			ESpyTreeMenuAction::baseInfo,
+			ESpyTreeMenuAction::property,
 			ESpyTreeMenuAction::enable
 		};
 		for (auto eAction : arrAction)
@@ -344,41 +384,51 @@ void CWidgetSpyTree::showContextMenu(const QPoint& pos)
 		return;
 	}
 
+	/* 菜单合并(15 项 -> 10 项): 高频直达 + 低频收子菜单
+	   - 基础信息并入组件信息窗口(基础信息分组); 事件跟踪All 并入事件跟踪窗口(包含子组件开关)
+	   - 目标定位删掉(双击节点即高亮); 顶层父组件单独放菜单最下面 */
 	QMenu contextMenu(this);
-	for (int nIndex = 0; nIndex < queryEnumCount<ESpyTreeMenuAction>(); nIndex++)
+	addAction(contextMenu, ESpyTreeMenuAction::spyParent);
+	addAction(contextMenu, ESpyTreeMenuAction::property);
+	addAction(contextMenu, ESpyTreeMenuAction::signalSlot);
+	addAction(contextMenu, ESpyTreeMenuAction::event);
+	QMenu* menuStyle = contextMenu.addMenu("样式");
+	addAction(*menuStyle, ESpyTreeMenuAction::styleEdit);
+	addAction(*menuStyle, ESpyTreeMenuAction::customDraw);
+	QMenu* menuSubView = contextMenu.addMenu("子视图");
+	addAction(*menuSubView, ESpyTreeMenuAction::layoutTree);
+	addAction(*menuSubView, ESpyTreeMenuAction::objectTree);
+
+	QAction* pActionVisible = addAction(contextMenu, ESpyTreeMenuAction::visible);
+	if (nullptr != pActionVisible)
 	{
-		auto eAction = queryEnumValue<ESpyTreeMenuAction>(nIndex);
-		auto pAction = addAction(contextMenu, eAction);
-		if (nullptr == pAction)
+		if (nullptr != widgetData(pItem))
 		{
-			continue;
+			pActionVisible->setText(widgetData(pItem)->isVisible() ? "隐藏" : "显示");
 		}
-
-		if (ESpyTreeMenuAction::visible == eAction)
+		else if (nullptr != graphicsData(pItem))
 		{
-			if (nullptr != widgetData(pItem))
-			{
-				pAction->setText(widgetData(pItem)->isVisible() ? "隐藏" : "显示");
-			}
-			else if (nullptr != graphicsData(pItem))
-			{
-				pAction->setText(graphicsData(pItem)->isVisible() ? "隐藏" : "显示");
-			}
-		}
-
-		if (ESpyTreeMenuAction::enable == eAction)
-		{
-			if (nullptr != widgetData(pItem))
-			{
-				pAction->setText(widgetData(pItem)->isEnabled() ? "禁用" : "启用");
-			}
-			else if (nullptr != graphicsData(pItem))
-			{
-				pAction->setText(graphicsData(pItem)->isEnabled() ? "禁用" : "启用");
-			}
+			pActionVisible->setText(graphicsData(pItem)->isVisible() ? "隐藏" : "显示");
 		}
 	}
-	
+
+	QAction* pActionEnable = addAction(contextMenu, ESpyTreeMenuAction::enable);
+	if (nullptr != pActionEnable)
+	{
+		if (nullptr != widgetData(pItem))
+		{
+			pActionEnable->setText(widgetData(pItem)->isEnabled() ? "禁用" : "启用");
+		}
+		else if (nullptr != graphicsData(pItem))
+		{
+			pActionEnable->setText(graphicsData(pItem)->isEnabled() ? "禁用" : "启用");
+		}
+	}
+
+	addAction(contextMenu, ESpyTreeMenuAction::move);
+	// 顶层父组件: 低频跳转, 单独放最下面
+	addAction(contextMenu, ESpyTreeMenuAction::firstParent);
+
 	onMenuClicked(contextMenu.exec(pos), pItem);
 }
 
@@ -386,20 +436,17 @@ QAction* CWidgetSpyTree::addAction(QMenu& menu, ESpyTreeMenuAction eAction)
 {
 	static QMap<ESpyTreeMenuAction, QString> s_MapAction = {
 		{ ESpyTreeMenuAction::spyParent , "父组件"},
-		{ ESpyTreeMenuAction::baseInfo, "基础信息" },
-		{ ESpyTreeMenuAction::property, "属性信息" },
+		{ ESpyTreeMenuAction::property, "组件信息" },
 		{ ESpyTreeMenuAction::styleEdit, "风格编辑" },
-		{ ESpyTreeMenuAction::locate, "目标定位"},
 		{ ESpyTreeMenuAction::layoutTree, "布局树" },
 		{ ESpyTreeMenuAction::objectTree, "对象树" },
 		{ ESpyTreeMenuAction::signalSlot, "信号/槽" },
 		{ ESpyTreeMenuAction::event, "事件跟踪" },
-		{ ESpyTreeMenuAction::eventAll, "事件跟踪All" },
 		{ ESpyTreeMenuAction::customDraw, "绘图代理" },
 		{ ESpyTreeMenuAction::visible, "显示" },
 		{ ESpyTreeMenuAction::enable, "启用" },
 		{ ESpyTreeMenuAction::move, "移动|缩放" },
-		{ ESpyTreeMenuAction::firstParent, "第一父组件" }
+		{ ESpyTreeMenuAction::firstParent, "顶层父组件" }
 	};
 	auto pAction = menu.addAction(s_MapAction[eAction]);
 	pAction->setProperty("action", eAction);
@@ -495,7 +542,7 @@ bool CWidgetSpyTree::showWidgetInfo(QTreeWidgetItem* pTreeItem)
 				nUniqueId = dynamic_cast<QWidget*>(pTargetWidget)->winId();
 			}
 			CListInfoWnd* pInfo = new CListInfoWnd(window());
-			pInfo->setWindowTitle(objectString(pTargetWidget));
+			pInfo->setWindowTitle("QtSpy · " + objectString(pTargetWidget));
 			pInfo->AddAttribute("class name", objectClass(pTargetWidget));
 			pInfo->AddAttribute("object name", pTargetWidget->objectName());
 			pInfo->AddAttribute("geometry", QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
@@ -517,7 +564,7 @@ bool CWidgetSpyTree::showWidgetInfo(QTreeWidgetItem* pTreeItem)
 			auto geoScreen = ScreenRect(pItem);
 			auto client = pItem->boundingRect();
 			CListInfoWnd* pInfo = new CListInfoWnd(window());
-			pInfo->setWindowTitle(objectString(pItem));
+			pInfo->setWindowTitle("QtSpy · " + objectString(pItem));
 			pInfo->AddAttribute("class name", objectClass(To<QObject>(pItem)));
 			pInfo->AddAttribute("object name", ::objectName(To<QObject>(pItem)));
 			pInfo->AddAttribute("boundingRect", QString("(%1,%2,%3,%4)").arg(client.left()).arg(client.top()).arg(client.right()).arg(client.bottom()));
@@ -530,7 +577,7 @@ bool CWidgetSpyTree::showWidgetInfo(QTreeWidgetItem* pTreeItem)
 		{
 			auto geo = pItem->geometry();
 			CListInfoWnd* pInfo = new CListInfoWnd(window());
-			pInfo->setWindowTitle("QSpacerItem");
+			pInfo->setWindowTitle("QtSpy · QSpacerItem");
 			pInfo->AddAttribute("class name", "QSpacerItem");
 			pInfo->AddAttribute("geometry", QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
 			QWidget* pParentWidget = pTreeItem->data(0, Qt::UserRole + 1).value<QWidget*>();
@@ -551,7 +598,7 @@ bool CWidgetSpyTree::showWidgetInfo(QTreeWidgetItem* pTreeItem)
 		{
 			auto geo = pLayout->geometry();
 			CListInfoWnd* pInfo = new CListInfoWnd(window());
-			pInfo->setWindowTitle("QLayout");
+			pInfo->setWindowTitle("QtSpy · QLayout");
 			pInfo->AddAttribute("class name", objectString(pLayout));
 			pInfo->AddAttribute("object name", pLayout->objectName());
 			pInfo->AddAttribute("geometry", QString("(%1,%2,%3,%4)").arg(geo.left()).arg(geo.top()).arg(geo.right()).arg(geo.bottom()));
@@ -576,87 +623,29 @@ bool CWidgetSpyTree::showWidgetInfo(QTreeWidgetItem* pTreeItem)
 
 bool CWidgetSpyTree::showWidgetStatus(QTreeWidgetItem* pItem)
 {
-	if (QWidget* pTargetWidget = widgetData(pItem)) {
-		CListInfoWnd* pInfo = new CListInfoWnd(window());
-		pInfo->setWindowTitle(objectString(pTargetWidget));
-
-		QStyleOption option;
-		option.initFrom(pTargetWidget);
-		QStringList arrState;
-		for (int i = 0; i < queryEnumCount<QStyle::StateFlag>(); i++)
-		{
-			if (option.state.testFlag(queryEnumValue<QStyle::StateFlag>(i)))
-			{
-				arrState.append(queryEnumName<QStyle::StateFlag>(i));
-			}
-		}
-		pInfo->AddAttribute("QStyle::StateFlag", arrState.join(" | "));
-
-		QStringList arrAttribute;
-		for (int i = 0; i < Qt::AA_AttributeCount; i++)
-		{
-			if (pTargetWidget->testAttribute((Qt::WidgetAttribute)i))
-			{
-				arrAttribute.append(queryEnumName<Qt::WidgetAttribute>((Qt::WidgetAttribute)i));
-			}
-		}
-		pInfo->AddAttribute("WidgetAttribute", arrAttribute.join(" | "));
-
-		QStringList arrWindowType;
-		for (int i = 0; i < queryEnumCount<Qt::WindowType>(); ++i)
-		{
-			if (pTargetWidget->windowFlags().testFlag(queryEnumValue<Qt::WindowType>(i)))
-			{
-				arrWindowType.append(queryEnumName<Qt::WindowType>(i));
-			}
-		}
-		pInfo->AddAttribute("WindowType", arrWindowType.join(" | "));
-
-		if (pTargetWidget->windowHandle())
-		{
-			QStringList arrWindowFlags;
-			for (int i = 0; i < queryEnumCount<Qt::WindowType>(); ++i)
-			{
-				if (pTargetWidget->windowHandle()->flags().testFlag(queryEnumValue<Qt::WindowType>(i)))
-				{
-					arrWindowFlags.append(queryEnumName<Qt::WindowType>(i));
-				}
-			}
-			pInfo->AddAttribute("WindowFlag", arrWindowFlags.join(" | "));
-		}
-
-		QStringList arrUserProperty;
-		for (int i = 0; i < pTargetWidget->metaObject()->propertyCount(); i++)
-		{
-			QMetaProperty property = pTargetWidget->metaObject()->property(i);
-			arrUserProperty.append(QString("%1 : %2").arg(property.name(), property.read(pTargetWidget).toString()));
-		}
-		if (!arrUserProperty.empty())
-		{
-			pInfo->AddAttribute("MetaProperty", arrUserProperty.join(" , "));
-		}
-
-		auto button = dynamic_cast<QAbstractButton*>(pTargetWidget);
-		if (button) {
-			pInfo->AddAttribute("抽象按钮类", button->isCheckable() ? "可勾选" : "不可勾选");
-			pInfo->AddAttribute("抽象按钮类", button->isChecked() ? "已勾选" : "未勾选");
-			pInfo->AddAttribute("抽象按钮类", button->group() ? "已分组" : "未分组");
-		}
-		pInfo->showOnTop();
+	if (nullptr == pItem)
+	{
+		return false;
 	}
 
-	return true;
-}
-
-bool CWidgetSpyTree::showEventTrace(QTreeWidgetItem* pItem)
-{
-	if (pItem) {
-		QObject* pTarget = widgetData(pItem) ? widgetData(pItem) : To<QObject>(graphicsData(pItem));
-		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd(window());
-		pEventTraceWnd->setWindowTitle(objectString(pTarget));
-		pEventTraceWnd->MonitorWidget(pTarget);
-		pEventTraceWnd->showOnTop();
+	QObject* pTargetObject = itemData<QObject>(pItem);
+	if (nullptr == pTargetObject)
+	{
+		pTargetObject = To<QObject>(graphicsData(pItem));
 	}
+	if (nullptr == pTargetObject)
+	{
+		// 纯 QGraphicsItem/QSpacerItem 不是 QObject, 没有属性表, 退回基础信息窗口
+		return showWidgetInfo(pItem);
+	}
+
+	CPropertyInspectorDlg* pInspectorDlg = new CPropertyInspectorDlg(window());
+	if (!pInspectorDlg->setTargetObject(pTargetObject))
+	{
+		delete pInspectorDlg;
+		return false;
+	}
+	pInspectorDlg->showOnTop();
 	return true;
 }
 
@@ -673,16 +662,27 @@ void travelTreeItem(QTreeWidgetItem* pItem, std::function<void(QTreeWidgetItem* 
 	}
 }
 
-bool CWidgetSpyTree::showEventTraceAll(QTreeWidgetItem* pItem)
+bool CWidgetSpyTree::showEventTrace(QTreeWidgetItem* pItem)
 {
 	if (pItem) {
 		QObject* pTarget = widgetData(pItem) ? widgetData(pItem) : To<QObject>(graphicsData(pItem));
 		CEventTraceWnd* pEventTraceWnd = new CEventTraceWnd(window());
-		pEventTraceWnd->setWindowTitle(objectString(pTarget)+"[All]");
-		travelTreeItem(pItem, [=](QTreeWidgetItem* pItem) {
-			QObject* pTarget = widgetData(pItem) ? widgetData(pItem) : To<QObject>(graphicsData(pItem));
-			pEventTraceWnd->MonitorWidget(pTarget);
+		pEventTraceWnd->setWindowTitle("QtSpy · 事件 " + objectString(pTarget));
+		// 两份目标集交给事件跟踪窗口: 自身 / 子树全部(树节点序),
+		// 窗内"包含子组件"开关在两者间切换(原"事件跟踪All"并入)
+		QList<QObject*> arrSelf, arrAll;
+		if (nullptr != pTarget)
+		{
+			arrSelf.append(pTarget);
+		}
+		travelTreeItem(pItem, [&arrAll, this](QTreeWidgetItem* pNode) {
+			QObject* pObj = widgetData(pNode) ? widgetData(pNode) : To<QObject>(graphicsData(pNode));
+			if (nullptr != pObj)
+			{
+				arrAll.append(pObj);
+			}
 		});
+		pEventTraceWnd->setTargets(arrSelf, arrAll);
 		pEventTraceWnd->showOnTop();
 	}
 	return true;
@@ -702,7 +702,7 @@ bool CWidgetSpyTree::showStyleEdit(QTreeWidgetItem* pItem)
 	if (pItem) {
 		QWidget* pTargetWidget = widgetData(pItem);
 		CStyleEditWnd* pEditStyleWnd = new CStyleEditWnd(window());
-		pEditStyleWnd->setWindowTitle(objectString(pTargetWidget));
+		pEditStyleWnd->setWindowTitle("QtSpy · " + objectString(pTargetWidget));
 		pEditStyleWnd->EditWidgetStyle(pTargetWidget);
 		pEditStyleWnd->showOnTop();
 	}
@@ -990,16 +990,6 @@ void CWidgetSpyTree::onMenuClicked(QAction* pAction, QTreeWidgetItem* pItem)
 		spyParentWidget(pItem);
 		break;
 	}
-	case ESpyTreeMenuAction::locate:
-	{
-		indicatorWidget(pItem);
-		break;
-	}
-	case ESpyTreeMenuAction::baseInfo:
-	{
-		showWidgetInfo(pItem);
-		break;
-	}
 	case ESpyTreeMenuAction::layoutTree:
 	{
 		showLayout(pItem);
@@ -1023,11 +1013,6 @@ void CWidgetSpyTree::onMenuClicked(QAction* pAction, QTreeWidgetItem* pItem)
 	case ESpyTreeMenuAction::event:
 	{
 		showEventTrace(pItem);
-		break;
-	}
-	case ESpyTreeMenuAction::eventAll:
-	{
-		showEventTraceAll(pItem);
 		break;
 	}
 	case ESpyTreeMenuAction::styleEdit:
@@ -1088,6 +1073,8 @@ bool CLayoutTree::setTreeTarget(QObject* target)
 	{
 		AddSubSpyNode(OTo<QLayout>(target), root);
 	}
+	// 设定目标后自动展开第一级
+	root->setExpanded(true);
 	return true;
 }
 
@@ -1157,6 +1144,8 @@ bool CObjectTree::setTreeTarget(QObject* target)
 	QTreeWidgetItem* root = new QTreeWidgetItem;
 	addTopLevelItem(root);
 	AddSubSpyNode(target, root);
+	// 设定目标后自动展开第一级
+	root->setExpanded(true);
 	return true;
 }
 

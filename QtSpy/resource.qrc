@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file>resource/spy_icon.png</file>
+        <file>resource/catch.png</file>
+        <file>resource/tree_close.png</file>
+        <file>resource/tree_open.png</file>
+    </qresource>
+</RCC>

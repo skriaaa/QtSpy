@@ -26,6 +26,8 @@ QString objectName(QObject* object);
 QString objectString(QObject* pObject);
 QString objectString(QGraphicsItem* pItem);
 
+QString pointerToHex(const void* pointer);
+
 QString styleSheet(QWidget* widget);
 
 QWidget* widgetAt(QPoint pt);
@@ -70,5 +72,3 @@ int queryEnumCount()
 {
 	return QMetaEnum::fromType<T>().keyCount();
 }
-
-QString normalStyleSheet();

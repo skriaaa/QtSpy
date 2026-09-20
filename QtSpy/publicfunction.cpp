@@ -17,6 +17,7 @@
 #include <QGraphicsItem>
 #include <QGraphicsProxyWidget>
 #include <QApplication>
+#include <QStringList>
 
 QPoint convertGlobalPointToWidget(QPoint ptGlobal, QWidget* pTargetWidget)
 {
@@ -183,15 +184,25 @@ QString objectString(QObject* object)
 		{
 			strText = pWidget->text();
 		}
-
-		strText += QString(" | %1 | %2").arg(object->objectName()).arg(pointerToHex(object));
 	}
-	else if(OTo<QLayout>(object))
+
+	/* 树节点文本组装: 括号仅在有内容(文字/objectName 任一)时展示;
+	   '|' 仅在两侧都有值时展示; 对象地址不再展示 */
+	QStringList arrParts;
+	if (!strText.isEmpty())
 	{
-		strText += QString(" | %1 | %2").arg(object->objectName()).arg(pointerToHex(object));
+		arrParts.append(strText);
 	}
-
-	QString strItemInfo = QString("%1(%2)").arg(objectClass(object)).arg(strText);
+	const QString strObjectName = object->objectName();
+	if (!strObjectName.isEmpty())
+	{
+		arrParts.append(strObjectName);
+	}
+	QString strItemInfo = objectClass(object);
+	if (!arrParts.isEmpty())
+	{
+		strItemInfo += QString("(%1)").arg(arrParts.join(" | "));
+	}
 	if (OTo<QWidget>(object) && !OTo<QWidget>(object)->isVisible())
 	{
 		strItemInfo += "[hide]";
@@ -212,8 +223,18 @@ QString objectString(QGraphicsItem* pItem)
 		return "";
 	}
 
-	QString strText = QString("%1 | %2").arg("graphicsItem").arg(pointerToHex(pItem));
-	QString strItemInfo = QString("%1(%2)").arg(objectClass(To<QObject>(pItem))).arg(strText);
+	// 非 QObject 图元取不到类名, 用 graphicsItem 占位; 地址不展示
+	QString strClass = objectClass(To<QObject>(pItem));
+	if (strClass.isEmpty())
+	{
+		strClass = "graphicsItem";
+	}
+	QString strItemInfo = strClass;
+	const QString strObjectName = objectName(To<QObject>(pItem));
+	if (!strObjectName.isEmpty())
+	{
+		strItemInfo += QString("(%1)").arg(strObjectName);
+	}
 	if(!pItem->isVisible())
 	{
 		strItemInfo += "[hide]";
@@ -331,481 +352,3 @@ QGraphicsItem* graphicsItemAt(QPoint pt)
 	return pView->scene()->itemAt(pView->mapToScene(pView->mapFromGlobal(pt)), QTransform());
 }
 
-QString normalStyleSheet()
-{
-	QString strStyleSheet = R"(
-/* ========================================================================== */
-/* Global & Common Styles                                                    */
-/* ========================================================================== */
-
-QWidget {
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-	font-size: 9pt;
-	color: black;
-	background-color: #f0f0f0;
-}
-
-QDialog {
-	background-color: #f0f0f0;
-}
-
-
-/* ========================================================================== */
-/* QLabel Styles                                                             */
-/* ========================================================================== */
-
-QLabel {
-	background: transparent;
-}
-
-
-/* ========================================================================== */
-/* QPushButton Styles                                                        */
-/* ========================================================================== */
-
-QPushButton {
-	background-color: #e1e1e1;
-	border: 1px solid #adadad;
-	padding: 4px;
-	min-width: 60px;
-	font-size: 9pt;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-QPushButton:hover {
-	background-color: #e5f1fb;
-	border: 1px solid #0078d7;
-}
-
-QPushButton:pressed {
-	background-color: #cce4f7;
-	border: 1px solid #005499;
-}
-
-
-/* ========================================================================== */
-/* QLineEdit Styles                                                          */
-/* ========================================================================== */
-
-QLineEdit {
-	border: 1px solid #7a7a7a;
-	background: white;
-	selection-background-color: #0078d7;
-	font-size: 9pt;
-	color: black;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-
-/* ========================================================================== */
-/* QTextEdit & QPlainTextEdit Styles                                         */
-/* ========================================================================== */
-
-QTextEdit, QPlainTextEdit {
-	background-color: white;
-	border: 1px solid #7a7a7a;
-	selection-background-color: #0078d7;
-	selection-color: white;
-	font-size: 9pt;
-	color: black;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-QTextEdit:focus, QPlainTextEdit:focus {
-	border: 1px solid #0078d7;
-}
-
-
-/* ========================================================================== */
-/* QCheckBox & QRadioButton Styles                                           */
-/* ========================================================================== */
-
-QCheckBox, QRadioButton {
-	spacing: 5px;
-	font-size: 9pt;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-QCheckBox::indicator, QRadioButton::indicator {
-	width: 13px;
-	height: 13px;
-}
-
-QCheckBox::indicator:unchecked {
-	border: 1px solid #7a7a7a;
-	background: white;
-}
-
-QCheckBox::indicator:checked {
-	border: 1px solid #0078d7;
-	background: #95d5fb;
-}
-
-QRadioButton::indicator:unchecked {
-	border: 1px solid #7a7a7a;
-	background: white;
-	border-radius: 7px;
-}
-
-QRadioButton::indicator:checked {
-	border: 1px solid #0078d7;
-	background: #0078d7;
-	border-radius: 7px;
-}
-
-
-/* ========================================================================== */
-/* QSpinBox & QDoubleSpinBox Styles                                          */
-/* ========================================================================== */
-
-QSpinBox, QDoubleSpinBox {
-	background: white;
-	border: 1px solid #7a7a7a;
-	padding: 2px;
-	font-size: 9pt;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-QSpinBox::up-button, QDoubleSpinBox::up-button {
-	background: #e1e1e1;
-	border-left: 1px solid #7a7a7a;
-}
-
-QSpinBox::down-button, QDoubleSpinBox::down-button {
-	background: #e1e1e1;
-	border-left: 1px solid #7a7a7a;
-}
-
-
-/* ========================================================================== */
-/* QComboBox Styles                                                          */
-/* ========================================================================== */
-
-QComboBox {
-	background: white;
-	border: 1px solid #7a7a7a;
-	padding: 2px 18px 2px 3px;
-	font-size: 9pt;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-QComboBox::drop-down {
-	subcontrol-origin: padding;
-	subcontrol-position: top right;
-	width: 15px;
-	border-left: 1px solid #7a7a7a;
-}
-
-QComboBox::down-arrow {
-	width: 0;
-	height: 0;
-	border-left: 4px solid transparent;
-	border-right: 4px solid transparent;
-	border-top: 4px solid #606060;
-}
-
-QComboBox QAbstractItemView {
-	background: white;
-	border: 1px solid #7a7a7a;
-	selection-background-color: #cce8ff;
-	selection-color: black;
-}
-
-
-/* ========================================================================== */
-/* QScrollBar Styles                                                         */
-/* ========================================================================== */
-
-QScrollBar:vertical {
-	background: #f0f0f0;
-	width: 6px;
-	margin: 0px;
-}
-
-QScrollBar::handle:vertical {
-	background: #cdcdcd;
-	min-height: 20px;
-	border-radius: 0px;
-}
-
-QScrollBar::handle:vertical:hover {
-	background: #a6a6a6;
-}
-
-QScrollBar::add-line:vertical {
-	height: 0px;
-	subcontrol-position: bottom;
-	subcontrol-origin: margin;
-}
-
-QScrollBar::sub-line:vertical {
-	height: 0px;
-	subcontrol-position: top;
-	subcontrol-origin: margin;
-}
-
-QScrollBar:horizontal {
-	background: #f0f0f0;
-	height: 6px;
-	margin: 0px;
-}
-
-QScrollBar::handle:horizontal {
-	background: #cdcdcd;
-	min-width: 20px;
-	border-radius: 0px;
-}
-
-QScrollBar::handle:horizontal:hover {
-	background: #a6a6a6;
-}
-
-
-/* ========================================================================== */
-/* QMenu & QMenuBar Styles                                                   */
-/* ========================================================================== */
-
-QMenu {
-	background: white;
-	color: black;
-	border: 1px solid #cccccc;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-	font-size: 9pt;
-	padding: 0px;
-	margin: 0px;
-	border-radius: 0px;
-}
-
-QMenu::item {
-	padding: 4px 10px;
-	background: transparent;
-	color: black;
-	border-radius: 0px;
-}
-
-QMenu::item:hover {
-	background-color: #90c8f6;
-	color: black;
-	border-radius: 0px;
-}
-
-QMenu::item:selected {
-	background-color: #90c8f6;
-	color: black;
-	border-radius: 0px;
-}
-
-QMenu::item:disabled {
-	color: #404040;
-}
-
-QMenu::item:selected:disabled {
-	color: #404040;
-}
-
-QMenuBar {
-	background: #f0f0f0;
-	color: black;
-	border-bottom: 1px solid #dcdcdc;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-	font-size: 9pt;
-}
-
-QMenuBar::item {
-	background: transparent;
-	color: black;
-	padding: 4px 10px;
-}
-
-QMenuBar::item:selected {
-	background: #cce8ff;
-}
-
-QMenuBar::item:pressed {
-	background: #99c9ef;
-}
-
-
-/* ========================================================================== */
-/* QTabWidget & QTabBar Styles                                               */
-/* ========================================================================== */
-
-QTabWidget::pane {
-	border: 1px solid #7a7a7a;
-	background: white;
-	padding: 2px;
-}
-
-QTabWidget::tab-bar {
-	alignment: left;
-}
-
-QTabBar::tab {
-	background: #e1e1e1;
-	border: 1px solid #adadad;
-	padding: 4px 10px;
-	margin-right: 2px;
-	font-size: 9pt;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-QTabBar::tab:selected {
-	background: white;
-	border-bottom: 0px;
-}
-
-QTabBar::tab:hover {
-	background: #e5f1fb;
-}
-
-
-/* ========================================================================== */
-/* QAbstractView & QHeaderView Styles (Base for Tree/Table/List)             */
-/* ========================================================================== */
-
-QAbstractView {
-	background: white;
-	color: rgba(15,15,15,255);
-	border: 1px solid #7a7a7a;
-	font-size: 9pt;
-}
-
-QAbstractView::item {
-	outline: none;
-	border: none;
-}
-
-QAbstractView::item:hover {
-	background-color: rgba(205, 232, 255, 255);
-	color: black;
-}
-
-QAbstractView::item:selected {
-	background-color: rgba(217, 217, 217, 255);
-	color: black;
-}
-
-QHeaderView::section {
-	background-color: #f0f0f0;
-	color: black;
-	border: 1px solid #dcdcdc;
-	padding: 4px;
-	font-size: 9pt;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-
-/* ========================================================================== */
-/* QTreeWidget Styles                                                        */
-/* ========================================================================== */
-
-QTreeWidget {
-	background:rgba(255,255,255,255);
-	color:black;
-	font:9pt Microsoft YaHei;
-	border:1px solid rgba(185,185,185,255);
-	outline:0px;
-    show-decoration-selected:1;
-}
-
-QTreeWidget::item{
-	outline:0px;
-	border:3px;
-	height: 25px;
-	color:transparent;
-}
-
-QTreeWidget::item:hover,QTreeWidget::branch:hover{
-	background:rgba(235,235,235,255);
-}
-
-QTreeWidget::item:selected,QTreeWidget::branch:selected {
-	background:rgba(204,232,255,255);
-}
-
-QTreeWidget::branch {
-	padding-top:2px;
-}
-
-QTreeWidget::branch:has-children:closed {
-	image: url(:/icons/resource/tree_open.png);
-}
-
-QTreeWidget::branch:has-children:open {
-	image: url(:/icons/resource/tree_close.png);
-}
-
-/* ========================================================================== */
-/* QTableWidget Styles                                                       */
-/* ========================================================================== */
-
-QTableWidget {
-	background-color: white;
-	alternate-background-color: #f7f7f7;
-	gridline-color: #d0d0d0;
-	selection-background-color: #cce8ff;
-	selection-color: black;
-	border: 1px solid #7a7a7a;
-	font-size: 9pt;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-QTableWidget::item {
-	padding: 2px;
-	border: none;
-	outline: none;
-}
-
-QTableWidget::item:hover {
-	background-color: #e5f3ff;
-}
-
-QTableWidget::item:selected {
-	background-color: #cce8ff;
-	color: black;
-}
-
-QTableWidget QTableCornerButton::section {
-	background-color: #f0f0f0;
-	border: 1px solid #dcdcdc;
-}
-
-
-/* ========================================================================== */
-/* QListView Styles                                                          */
-/* ========================================================================== */
-
-QListView {
-	background-color: white;
-	border: 1px solid #7a7a7a;
-	selection-background-color: #cce8ff;
-	selection-color: black;
-	font-size: 9pt;
-	outline: none;
-	padding: 0px;
-	margin: 0px;
-	font-family: 'Microsoft YaHei', 'Segoe UI';
-}
-
-QListView::item {
-	padding: 2px;
-	border: none;
-	color: black;
-	background: white;
-}
-
-QListView::item:hover {
-	background-color: #e5f3ff;
-}
-
-QListView::item:selected {
-	background-color: #cce8ff;
-	color: black;
-}
-
-QListView::item:selected:!active {
-	background-color: #d9d9d9;
-}
-)";
-	return strStyleSheet;
-}

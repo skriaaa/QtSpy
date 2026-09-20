@@ -26,7 +26,7 @@ set(CMAKE_DEBUG_POSTFIX "d")
 # 添加源文件
 findSourceFile(
 	FILEARRAYNAME fileList
-	SUBDIRS /proxyStyle /dialog /utils /styleSheet
+	SUBDIRS /proxyStyle /dialog /utils /styleSheet /theme
 	)
 	
 # build project

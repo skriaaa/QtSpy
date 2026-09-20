@@ -3,6 +3,8 @@
 #include <QGraphicsItem>
 #include <QStyledItemDelegate>
 #include <QMenu>
+#include <QPointer>
+#include <functional>
 
 // 自定义委托，根据全局行号改变文字颜色
 class CTreeWidgetDelegate : public QStyledItemDelegate
@@ -32,15 +34,12 @@ public:
 	enum ESpyTreeMenuAction
 	{
 		spyParent = 0,
-		baseInfo,
 		property,
 		styleEdit,
-		locate,
 		layoutTree,
 		objectTree,
 		signalSlot,
 		event,
-		eventAll,
 		customDraw,
 		visible,
 		enable,
@@ -63,6 +62,7 @@ public:
 	int currentCount();
 	bool eventFilter(QObject* obj, QEvent* event) override;
 protected:
+	virtual void paintEvent(QPaintEvent* event) override;
 	void changeWidgetVisible(QTreeWidgetItem* pItem);
 	void changeWidgetEnable(QTreeWidgetItem* pItem);
 	void changeWidgetPosOrSize(QTreeWidgetItem* pItem);
@@ -71,7 +71,6 @@ protected:
 	bool showWidgetInfo(QTreeWidgetItem* pItem);
 	bool showWidgetStatus(QTreeWidgetItem* pItem);
 	bool showEventTrace(QTreeWidgetItem* pItem);
-	bool showEventTraceAll(QTreeWidgetItem* pItem);
 	bool setUserDraw(QTreeWidgetItem* pItem);
 	bool showStyleEdit(QTreeWidgetItem* pItem);
 	bool spyParentWidget(QTreeWidgetItem* pItem);
@@ -102,6 +101,28 @@ public:
 	virtual bool setTreeTarget(QObject* target) override;
 	bool AddSubSpyNode(QWidget* parent, QTreeWidgetItem* parentNode);
 	bool AddSubSpyNode(QLayout* parent, QTreeWidgetItem* parentNode, QWidget* pWidget = nullptr);
+};
+
+// 屏幕拾取定位: 十字光标在屏幕上点选控件/图元, 选中其在树中的节点(右键取消)。
+// 原为 ObjectTree.cpp 内部实现, 查找窗口合并"名称/鼠标定位"后移到此处共用。
+class CTreeCursorSearchFilter : public QObject
+{
+public:
+	CTreeCursorSearchFilter(QWidget* pHostWidget, CWidgetSpyTree* pTree);
+	~CTreeCursorSearchFilter() override;
+
+	void start();
+	// 拾取成功(左键点中)后的回调, 查找窗口用它实现"拾取完成即关闭"
+	void setPickedCallback(std::function<void()> callback);
+protected:
+	bool eventFilter(QObject* pWatched, QEvent* pEvent) override;
+private:
+	void finish();
+private:
+	QPointer<QWidget> m_pHostWidget;
+	QPointer<CWidgetSpyTree> m_pTree;
+	std::function<void()> m_fnPicked;
+	bool m_bRunning = false;
 };
 
 class CObjectTree : public CWidgetSpyTree
