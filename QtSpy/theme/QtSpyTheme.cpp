@@ -80,6 +80,9 @@ QString QtSpyTheme::qss()
 QWidget {
 	font-family: 'Microsoft YaHei UI', 'Microsoft YaHei', 'Segoe UI';
 	font-size: 9pt;
+	/* font-weight 也显式声明: 目标程序 qApp 级样式表同属性会穿透(我们只写了 family/size 时),
+	   weight 落空即被目标值污染; QtSpy 自有界面无粗体, 归一为 normal */
+	font-weight: normal;
 	color: ${textPrimary};
 	background-color: ${windowBg};
 }
@@ -156,19 +159,21 @@ QCheckBox::indicator, QRadioButton::indicator {
 	width: 13px;
 	height: 13px;
 }
-QCheckBox::indicator:unchecked {
-	border: 1px solid ${border};
-	background: ${contentBg};
-	border-radius: 2px;
+QCheckBox::indicator {
+	/* 选中/未选都用图片: 32x32 原图, border-image 拉到 15x15 显示(image 不缩放, 文件尺寸不再是约束) */
+	width: 15px;
+	height: 15px;
+	border-image: url(:/icons/resource/checkbox-indicator.png) 0 0 0 0 stretch stretch;
 }
 QCheckBox::indicator:checked {
-	border: 1px solid ${accent};
-	background: ${accent};
-	border-radius: 2px;
+	border-image: url(:/icons/resource/checkbox-indicator-checked.png) 0 0 0 0 stretch stretch;
 }
 QCheckBox::indicator:disabled {
+	/* 禁用不用图片: 退回自绘灰框(QSS 无法对 border-image 降透明度) */
+	border-image: none;
 	border: 1px solid ${border};
 	background: ${windowBg};
+	border-radius: 2px;
 }
 QRadioButton::indicator {
 	border-radius: 7px;
@@ -182,7 +187,8 @@ QRadioButton::indicator:checked {
 	background: ${accent};
 }
 
-QSpinBox, QDoubleSpinBox {
+/* QDateTimeEdit/QDateEdit/QTimeEdit 同属 QAbstractSpinBox, 上下按钮/箭头一并归一 */
+QSpinBox, QDoubleSpinBox, QDateTimeEdit {
 	background: ${contentBg};
 	border: 1px solid ${border};
 	border-radius: ${radius}px;
@@ -190,26 +196,58 @@ QSpinBox, QDoubleSpinBox {
 	padding: 2px 4px;
 	color: ${textPrimary};
 }
-QSpinBox:focus, QDoubleSpinBox:focus {
+QSpinBox:focus, QDoubleSpinBox:focus, QDateTimeEdit:focus {
 	border: 1px solid ${accent};
 }
-QSpinBox:disabled, QDoubleSpinBox:disabled {
+QSpinBox:disabled, QDoubleSpinBox:disabled, QDateTimeEdit:disabled {
 	color: ${textDisabled};
 	background: ${windowBg};
 }
-QSpinBox::up-button, QDoubleSpinBox::up-button {
+QSpinBox::up-button, QDoubleSpinBox::up-button, QDateTimeEdit::up-button {
+	subcontrol-origin: border;
+	subcontrol-position: top right;
 	background: ${windowBg};
 	border-left: 1px solid ${border};
+	border-bottom: 1px solid ${border};
 	width: 16px;
 }
-QSpinBox::down-button, QDoubleSpinBox::down-button {
+QSpinBox::down-button, QDoubleSpinBox::down-button, QDateTimeEdit::down-button {
+	subcontrol-origin: border;
+	subcontrol-position: bottom right;
 	background: ${windowBg};
 	border-left: 1px solid ${border};
+	/* 透明上边框只占位不画线: up-button 的 border-bottom(分隔线)使其 content 为 14(偶数)高,
+	   本按钮 content 是 15(奇数)高 —— alignedRect 整数除法截断 0.5px, 下箭头整体比镜像位置高 1px。
+	   补 1px 后两边 content 同为 14, 上/下箭头精确镜像对齐 */
+	border-top: 1px solid transparent;
 	width: 16px;
 }
 QSpinBox::up-button:hover, QSpinBox::down-button:hover,
-QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover {
+QDoubleSpinBox::up-button:hover, QDoubleSpinBox::down-button:hover,
+QDateTimeEdit::up-button:hover, QDateTimeEdit::down-button:hover {
 	background: ${hoverBg};
+}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow, QDateTimeEdit::up-arrow {
+	/* 上箭头 = tree_close(下 chevron) 旋转 180 度派生; cuts 对应旋转后的
+	   chevron 外接框 y[12..20] x[8..23], 10x6 与下拉/树箭头同规格 */
+	width: 10px;
+	height: 6px;
+	border-image: url(:/icons/resource/spin_arrow_up.png) 12 8 11 8 stretch stretch;
+}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow, QDateTimeEdit::down-arrow {
+	/* 下箭头直接用 tree_close, cuts 与 QComboBox::down-arrow 相同 */
+	width: 10px;
+	height: 6px;
+	border-image: url(:/icons/resource/spin_arrow_down.png) 11 8 12 8 stretch stretch;
+}
+QSpinBox::up-arrow:disabled, QDoubleSpinBox::up-arrow:disabled,
+QDateTimeEdit::up-arrow:disabled {
+	/* 禁用 50% alpha 淡化(与 tab 滚动箭头同惯例) */
+	border-image: url(:/icons/resource/spin_arrow_up_disabled.png) 12 8 11 8 stretch stretch;
+}
+QSpinBox::down-arrow:disabled, QDoubleSpinBox::down-arrow:disabled,
+QDateTimeEdit::down-arrow:disabled {
+	border-image: url(:/icons/resource/spin_arrow_down_disabled.png) 11 8 12 8 stretch stretch;
 }
 
 QComboBox {
@@ -237,17 +275,22 @@ QComboBox::drop-down {
 	border-left: 1px solid ${border};
 }
 QComboBox::down-arrow {
-	width: 0;
-	height: 0;
-	border-left: 4px solid transparent;
-	border-right: 4px solid transparent;
-	border-top: 4px solid ${textSecondary};
+	/* 复用 tree 分支箭头 32x32 原图, 不再单独存 down.png。
+	   cuts(上右下左) 取原图 chevron 外接框 x[8..23] y[11..19]; 10x6 与树里分支箭头
+	   的实际渲染尺寸一致(可见部分同大小同比例, "跟原图一样") */
+	width: 10px;
+	height: 6px;
+	border-image: url(:/icons/resource/tree_close.png) 11 8 12 8 stretch stretch;
 }
 QComboBox QAbstractItemView {
 	background: ${contentBg};
 	border: 1px solid ${border};
 	selection-background-color: ${selectionBg};
 	selection-color: ${textPrimary};
+}
+QComboBox QAbstractItemView::item {
+	/* 下拉列表默认行高 28 */
+	min-height: 28px;
 }
 
 QMenu {
@@ -259,11 +302,15 @@ QMenu {
 }
 QMenu::item {
 	padding: 4px 24px;
+	/* color 必须显式写: 不写时目标程序 qApp 级 QMenu::item{color:...} 会穿透污染菜单文字
+	   (父链样式表深度只对"同属性"覆盖生效, 未声明的属性放行) */
+	color: ${textPrimary};
 	background: transparent;
 	border-radius: ${radius}px;
 }
 QMenu::item:selected {
 	background-color: ${selectionBg};
+	color: ${textPrimary};
 }
 QMenu::item:disabled {
 	color: ${textDisabled};
@@ -272,6 +319,14 @@ QMenu::separator {
 	height: 1px;
 	background: ${border};
 	margin: 4px 8px;
+}
+QMenu::right-arrow {
+	/* 二级菜单右侧箭头: tree_open 32x32 原图整体拉伸(chevron 实占画布 9x17)。
+	   不用 cuts 裁切 —— 裁切会把 9:17 的细高 chevron 拉成正方形, 视觉发扁;
+	   改用大一点的矩形让可见部分保持原比例: 15x15 矩形里 chevron 可见 ~4x8 */
+	width: 15px;
+	height: 15px;
+	border-image: url(:/icons/resource/tree_open.png) 0 0 0 0 stretch stretch;
 }
 
 QMenuBar {
@@ -316,6 +371,34 @@ QTabBar::tab:selected {
 	color: ${accent};
 	border: 1px solid ${border};
 	border-bottom: 2px solid ${accent};
+}
+
+/* tab 溢出时的左右滚动按钮(QTabBar 内部 QToolButton, 原生箭头难看):
+   箭头走 PE_IndicatorArrowLeft/Right 的 ::left-arrow/::right-arrow 伪元素,
+   用 tree_open 派生的 tab_arrow 图 —— 右向=裁切原图, 左向=翻转, 禁用=50% alpha 淡化。
+   画布已裁成按钮同比例(~16x23), 0 cuts 拉伸近似等比, chevron 不变形 */
+QTabBar QToolButton {
+	/* 不透明底色: 滚动按钮会叠在滚过的 tab 上, transparent 会透出底下的 tab */
+	background: ${windowBg};
+	border: none;
+}
+QTabBar QToolButton:hover {
+	background: ${hoverBg};
+}
+QTabBar QToolButton:pressed {
+	background: ${selectionBg};
+}
+QTabBar QToolButton::left-arrow {
+	border-image: url(:/icons/resource/tab_arrow_left.png) 0 0 0 0 stretch stretch;
+}
+QTabBar QToolButton::right-arrow {
+	border-image: url(:/icons/resource/tab_arrow_right.png) 0 0 0 0 stretch stretch;
+}
+QTabBar QToolButton::left-arrow:disabled {
+	border-image: url(:/icons/resource/tab_arrow_left_disabled.png) 0 0 0 0 stretch stretch;
+}
+QTabBar QToolButton::right-arrow:disabled {
+	border-image: url(:/icons/resource/tab_arrow_right_disabled.png) 0 0 0 0 stretch stretch;
 }
 
 QAbstractItemView {

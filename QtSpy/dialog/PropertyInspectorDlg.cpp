@@ -14,6 +14,7 @@
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
+#include <QListView>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMetaProperty>
@@ -38,72 +39,19 @@ namespace
 	const int HIGHLIGHT_REFRESH_COUNT = 4;
 	const QColor PROPERTY_CHANGED_COLOR = QtSpyTheme::palette().highlightChange;
 
-	enum PROPERTY_EDITOR_TYPE
+	// 值列文本化/解析/编辑器统一走 ParamEditor(参数/属性编辑公共设施)
+	ParamEditor::ParamType paramTypeOfItem(const PROPERTY_ITEM_INFO& PropertyItemInfo)
 	{
-		PROPERTY_EDITOR_NONE = 0,
-		PROPERTY_EDITOR_BOOL,
-		PROPERTY_EDITOR_SIGNED_INTEGER,
-		PROPERTY_EDITOR_UNSIGNED_INTEGER,
-		PROPERTY_EDITOR_FLOAT,
-		PROPERTY_EDITOR_STRING,
-		PROPERTY_EDITOR_ENUM,
-		PROPERTY_EDITOR_FLAG
-	};
-
-	enum PROPERTY_ITEM_ROLE
-	{
-		PROPERTY_ITEM_ROLE_EDITOR_TYPE = Qt::UserRole + 1,
-		PROPERTY_ITEM_ROLE_ENUM_KEYS
-	};
-
-	PROPERTY_EDITOR_TYPE propertyEditorType(const PROPERTY_ITEM_INFO& PropertyItemInfo)
-	{
-		if (!PropertyItemInfo.bEditable)
-		{
-			return PROPERTY_EDITOR_NONE;
-		}
-		if (PropertyItemInfo.metaEnum.isValid())
-		{
-			return PropertyItemInfo.bFlag ? PROPERTY_EDITOR_FLAG : PROPERTY_EDITOR_ENUM;
-		}
-
-		switch (PropertyItemInfo.nTypeId)
-		{
-		case QMetaType::Bool:
-			return PROPERTY_EDITOR_BOOL;
-		case QMetaType::Int:
-		case QMetaType::LongLong:
-		case QMetaType::Long:
-		case QMetaType::Short:
-		case QMetaType::Char:
-		case QMetaType::SChar:
-			return PROPERTY_EDITOR_SIGNED_INTEGER;
-		case QMetaType::UInt:
-		case QMetaType::ULongLong:
-		case QMetaType::ULong:
-		case QMetaType::UShort:
-		case QMetaType::UChar:
-			return PROPERTY_EDITOR_UNSIGNED_INTEGER;
-		case QMetaType::Double:
-		case QMetaType::Float:
-			return PROPERTY_EDITOR_FLOAT;
-		case QMetaType::QString:
-			return PROPERTY_EDITOR_STRING;
-		default:
-			break;
-		}
-
-		return PROPERTY_EDITOR_NONE;
+		ParamEditor::ParamType type;
+		type.nTypeId = PropertyItemInfo.nTypeId;
+		type.metaEnum = PropertyItemInfo.metaEnum;
+		type.bFlag = PropertyItemInfo.bFlag;
+		return type;
 	}
 
 	bool isSupportedPropertyType(const QMetaProperty& metaProperty)
 	{
-		PROPERTY_ITEM_INFO PropertyItemInfo;
-		PropertyItemInfo.nTypeId = metaProperty.userType();
-		PropertyItemInfo.metaEnum = metaProperty.enumerator();
-		PropertyItemInfo.bFlag = metaProperty.isFlagType();
-		PropertyItemInfo.bEditable = true;
-		return PROPERTY_EDITOR_NONE != propertyEditorType(PropertyItemInfo);
+		return ParamEditor::isEditable(ParamEditor::fromProperty(metaProperty));
 	}
 
 	QString propertyOwnerName(const QMetaObject* pMetaObject, int nPropertyIndex)
@@ -148,160 +96,10 @@ namespace
 		return listPermissions.join(" / ");
 	}
 
-	QString enumValueText(const QMetaEnum& metaEnum, int nValue, bool bFlag)
+	// 属性值 -> 值列文本(枚举/flags/各值类型统一在 ParamEditor::valueToText)
+	QString propertyValueText(const PROPERTY_ITEM_INFO& PropertyItemInfo, const QVariant& value)
 	{
-		QByteArray arrFlagValue;
-		const char* pszValue = nullptr;
-		if (bFlag)
-		{
-			arrFlagValue = metaEnum.valueToKeys(nValue);
-			pszValue = arrFlagValue.constData();
-		}
-		else
-		{
-			pszValue = metaEnum.valueToKey(nValue);
-		}
-		if ((nullptr != pszValue) && ('\0' != pszValue[0]))
-		{
-			return QString::fromLatin1(pszValue);
-		}
-
-		return QString::number(nValue);
-	}
-
-	QString propertyValueText(const QMetaProperty& metaProperty, const QVariant& value)
-	{
-		if (!value.isValid())
-		{
-			return "<无效>";
-		}
-		if (metaProperty.isEnumType())
-		{
-			return enumValueText(metaProperty.enumerator(), value.toInt(), metaProperty.isFlagType());
-		}
-		if (QMetaType::Bool == value.userType())
-		{
-			return value.toBool() ? "true" : "false";
-		}
-		if (QMetaType::QString == value.userType())
-		{
-			return value.toString();
-		}
-		if ((QMetaType::Double == value.userType()) || (QMetaType::Float == value.userType()))
-		{
-			return QString::number(value.toDouble(), 'g', 15);
-		}
-
-		QString strValue = value.toString();
-		if (!strValue.isEmpty())
-		{
-			return strValue;
-		}
-
-		QDebug debugOutput(&strValue);
-		debugOutput.noquote().nospace() << value;
-		return strValue;
-	}
-
-	bool convertValueType(QVariant& value, int nTypeId)
-	{
-		if (nTypeId == value.userType())
-		{
-			return true;
-		}
-		return value.convert(nTypeId);
-	}
-
-	bool convertPropertyValue(const PROPERTY_ITEM_INFO& PropertyItemInfo, const QString& strText, QVariant& value)
-	{
-		QString strValue = strText.trimmed();
-		if (PropertyItemInfo.metaEnum.isValid())
-		{
-			QByteArray arrValue = strValue.toLatin1();
-			bool bConverted = false;
-			int nValue = PropertyItemInfo.bFlag
-				? PropertyItemInfo.metaEnum.keysToValue(arrValue.constData(), &bConverted)
-				: PropertyItemInfo.metaEnum.keyToValue(arrValue.constData(), &bConverted);
-			if (!bConverted)
-			{
-				nValue = strValue.toInt(&bConverted, 0);
-			}
-			if (!bConverted)
-			{
-				return false;
-			}
-
-			value = nValue;
-			if ((QMetaType::UnknownType != PropertyItemInfo.nTypeId) && !convertValueType(value, PropertyItemInfo.nTypeId))
-			{
-				value = nValue;
-			}
-			return true;
-		}
-
-		bool bConverted = false;
-		switch (PropertyItemInfo.nTypeId)
-		{
-		case QMetaType::Bool:
-			if ((0 == strValue.compare("true", Qt::CaseInsensitive)) || ("1" == strValue))
-			{
-				value = true;
-				return true;
-			}
-			if ((0 != strValue.compare("false", Qt::CaseInsensitive)) && ("0" != strValue))
-			{
-				return false;
-			}
-			value = false;
-			return true;
-		case QMetaType::Int:
-		case QMetaType::LongLong:
-		case QMetaType::Long:
-		case QMetaType::Short:
-		case QMetaType::Char:
-		case QMetaType::SChar:
-		{
-			qlonglong llValue = strValue.toLongLong(&bConverted, 0);
-			if (!bConverted)
-			{
-				return false;
-			}
-			value = llValue;
-			return convertValueType(value, PropertyItemInfo.nTypeId);
-		}
-		case QMetaType::UInt:
-		case QMetaType::ULongLong:
-		case QMetaType::ULong:
-		case QMetaType::UShort:
-		case QMetaType::UChar:
-		{
-			qulonglong ullValue = strValue.toULongLong(&bConverted, 0);
-			if (!bConverted)
-			{
-				return false;
-			}
-			value = ullValue;
-			return convertValueType(value, PropertyItemInfo.nTypeId);
-		}
-		case QMetaType::Double:
-		case QMetaType::Float:
-		{
-			double dValue = strValue.toDouble(&bConverted);
-			if (!bConverted)
-			{
-				return false;
-			}
-			value = dValue;
-			return convertValueType(value, PropertyItemInfo.nTypeId);
-		}
-		case QMetaType::QString:
-			value = strText;
-			return true;
-		default:
-			break;
-		}
-
-		return false;
+		return ParamEditor::valueToText(paramTypeOfItem(PropertyItemInfo), value);
 	}
 
 	void setTableItemText(QTableWidget* pTable, int nRow, int nColumn, const QString& strText)
@@ -322,67 +120,51 @@ CPropertyItemDelegate::CPropertyItemDelegate(QObject* pParent)
 {
 }
 
+void CPropertyItemDelegate::setParamTypeResolver(const ParamTypeResolver& fnResolver)
+{
+	m_fnResolveParamType = fnResolver;
+}
+
 QWidget* CPropertyItemDelegate::createEditor(QWidget* pParent, const QStyleOptionViewItem& option, const QModelIndex& index) const
 {
 	Q_UNUSED(option);
+	if (!m_fnResolveParamType)
+	{
+		return nullptr;
+	}
+	// 行号 -> 参数类型 -> ParamEditor 统一创建编辑器
+	const ParamEditor::ParamType type = m_fnResolveParamType(index.row());
+	if (!ParamEditor::isEditable(type))
+	{
+		return nullptr;
+	}
+	QWidget* pEditor = ParamEditor::createEditor(type, pParent);
+	if (nullptr != pEditor)
+	{
+		// 按钮型编辑器(复合值/字体)在属性面板双击单元格即弹窗, 免去再点一次按钮;
+		// 发送信号弹窗不设此属性, 按钮仍是普通点击弹窗
+		pEditor->setProperty("qtspyAutoOpenDialog", true);
+	}
+	return pEditor;
+}
 
-	PROPERTY_EDITOR_TYPE eEditorType = static_cast<PROPERTY_EDITOR_TYPE>(index.data(PROPERTY_ITEM_ROLE_EDITOR_TYPE).toInt());
-	if (PROPERTY_EDITOR_BOOL == eEditorType)
-	{
-		QComboBox* pComboBox = new QComboBox(pParent);
-		pComboBox->addItem("false");
-		pComboBox->addItem("true");
-		pComboBox->setProperty("qtspyPropertyEditor", true);
-		return pComboBox;
-	}
-	if (PROPERTY_EDITOR_ENUM == eEditorType)
-	{
-		QComboBox* pComboBox = new QComboBox(pParent);
-		pComboBox->addItems(index.data(PROPERTY_ITEM_ROLE_ENUM_KEYS).toStringList());
-		pComboBox->setProperty("qtspyPropertyEditor", true);
-		return pComboBox;
-	}
-
-	QLineEdit* pLineEdit = new QLineEdit(pParent);
-	pLineEdit->setProperty("qtspyPropertyEditor", true);
-	if (PROPERTY_EDITOR_SIGNED_INTEGER == eEditorType)
-	{
-		QRegularExpression expression("-?[0-9]+");
-		pLineEdit->setValidator(new QRegularExpressionValidator(expression, pLineEdit));
-	}
-	else if (PROPERTY_EDITOR_UNSIGNED_INTEGER == eEditorType)
-	{
-		QRegularExpression expression("[0-9]+");
-		pLineEdit->setValidator(new QRegularExpressionValidator(expression, pLineEdit));
-	}
-	else if (PROPERTY_EDITOR_FLOAT == eEditorType)
-	{
-		QDoubleValidator* pValidator = new QDoubleValidator(pLineEdit);
-		pValidator->setNotation(QDoubleValidator::ScientificNotation);
-		pLineEdit->setValidator(pValidator);
-	}
-
-	return pLineEdit;
+void CPropertyItemDelegate::updateEditorGeometry(QWidget* pEditor, const QStyleOptionViewItem& option, const QModelIndex& index) const
+{
+	Q_UNUSED(index);
+	// 编辑器高度固定 28, 在单元格内垂直居中:
+	// 默认按左上角贴齐, 编辑器比行高时看起来"弹出位置偏移", 居中后上下对称
+	QRect rcEditor = option.rect;
+	rcEditor.setTop(rcEditor.center().y() - 28 / 2);
+	rcEditor.setHeight(28);
+	pEditor->setGeometry(rcEditor);
 }
 
 void CPropertyItemDelegate::setEditorData(QWidget* pEditor, const QModelIndex& index) const
 {
-	QString strValue = index.data(Qt::EditRole).toString();
-	if (QComboBox* pComboBox = qobject_cast<QComboBox*>(pEditor))
+	// 编辑器统一实现 paramText 属性(文本往返), 无该声明属性时走基类
+	if (0 <= pEditor->metaObject()->indexOfProperty("paramText"))
 	{
-		int nIndex = pComboBox->findText(strValue);
-		if (0 > nIndex)
-		{
-			pComboBox->addItem(strValue);
-			nIndex = pComboBox->count() - 1;
-		}
-		pComboBox->setCurrentIndex(nIndex);
-		return;
-	}
-	if (QLineEdit* pLineEdit = qobject_cast<QLineEdit*>(pEditor))
-	{
-		pLineEdit->setText(strValue);
-		pLineEdit->selectAll();
+		pEditor->setProperty("paramText", index.data(Qt::EditRole).toString());
 		return;
 	}
 
@@ -391,14 +173,9 @@ void CPropertyItemDelegate::setEditorData(QWidget* pEditor, const QModelIndex& i
 
 void CPropertyItemDelegate::setModelData(QWidget* pEditor, QAbstractItemModel* pModel, const QModelIndex& index) const
 {
-	if (QComboBox* pComboBox = qobject_cast<QComboBox*>(pEditor))
+	if (0 <= pEditor->metaObject()->indexOfProperty("paramText"))
 	{
-		pModel->setData(index, pComboBox->currentText(), Qt::EditRole);
-		return;
-	}
-	if (QLineEdit* pLineEdit = qobject_cast<QLineEdit*>(pEditor))
-	{
-		pModel->setData(index, pLineEdit->text(), Qt::EditRole);
+		pModel->setData(index, pEditor->property("paramText").toString(), Qt::EditRole);
 		return;
 	}
 
@@ -443,10 +220,6 @@ void CPropertyInspectorDlg::initWidgets()
 {
 	QVBoxLayout* pMainLayout = new QVBoxLayout(this);
 
-	m_pTargetLabel = new QLabel(this);
-	m_pTargetLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
-	pMainLayout->addWidget(m_pTargetLabel);
-
 	QHBoxLayout* pToolLayout = new QHBoxLayout;
 	m_pSearchEdit = new QLineEdit(this);
 	m_pSearchEdit->setClearButtonEnabled(true);
@@ -466,7 +239,7 @@ void CPropertyInspectorDlg::initWidgets()
 	// tab 顺序: 基础信息 -> 状态 -> 属性(默认停在基础信息)
 
 	// 基础信息 tab: 原独立"基础信息"窗口(geometry/size/sizePolicy/font 等)并入,
-	// 并随自动刷新保持最新; class/objectName 已在"状态"tab, 不重复
+	// 并随自动刷新保持最新; 列表头部为 Class/ObjectName/Pointer(原顶部 QLabel)
 	m_pBaseInfoTable = new QTableWidget(this);
 	m_pBaseInfoTable->setColumnCount(2);
 	m_pBaseInfoTable->setHorizontalHeaderLabels({ "项目", "值" });
@@ -499,7 +272,16 @@ void CPropertyInspectorDlg::initWidgets()
 	editTriggers |= QAbstractItemView::SelectedClicked;
 	m_pPropertyTable->setEditTriggers(editTriggers);
 	m_pPropertyTable->setContextMenuPolicy(Qt::CustomContextMenu);
-	m_pPropertyTable->setItemDelegateForColumn(PROPERTY_COLUMN_VALUE, new CPropertyItemDelegate(m_pPropertyTable));
+	// 值列编辑器按行取参数类型(m_vectorPropertyItems 里有 metatype/枚举信息)
+	CPropertyItemDelegate* pValueDelegate = new CPropertyItemDelegate(m_pPropertyTable);
+	pValueDelegate->setParamTypeResolver([this](int nRow) {
+		if ((0 > nRow) || (nRow >= m_vectorPropertyItems.size()))
+		{
+			return ParamEditor::ParamType();
+		}
+		return paramTypeOfItem(m_vectorPropertyItems.at(nRow));
+	});
+	m_pPropertyTable->setItemDelegateForColumn(PROPERTY_COLUMN_VALUE, pValueDelegate);
 	m_pPropertyTable->verticalHeader()->setVisible(false);
 	m_pPropertyTable->horizontalHeader()->setSectionResizeMode(PROPERTY_COLUMN_NAME, QHeaderView::ResizeToContents);
 	m_pPropertyTable->horizontalHeader()->setSectionResizeMode(PROPERTY_COLUMN_TYPE, QHeaderView::ResizeToContents);
@@ -594,17 +376,6 @@ void CPropertyInspectorDlg::buildPropertyRows()
 				pValueItem->setToolTip("当前类型暂不支持编辑。");
 			}
 		}
-		PROPERTY_EDITOR_TYPE eEditorType = propertyEditorType(PropertyItemInfo);
-		pValueItem->setData(PROPERTY_ITEM_ROLE_EDITOR_TYPE, static_cast<int>(eEditorType));
-		if (PROPERTY_EDITOR_ENUM == eEditorType)
-		{
-			QStringList listEnumKeys;
-			for (int nKeyIndex = 0; nKeyIndex < PropertyItemInfo.metaEnum.keyCount(); ++nKeyIndex)
-			{
-				listEnumKeys.append(QString::fromLatin1(PropertyItemInfo.metaEnum.key(nKeyIndex)));
-			}
-			pValueItem->setData(PROPERTY_ITEM_ROLE_ENUM_KEYS, listEnumKeys);
-		}
 		m_pPropertyTable->setItem(nPropertyIndex, PROPERTY_COLUMN_VALUE, pValueItem);
 
 		QTableWidgetItem* pPermissionItem = new QTableWidgetItem(propertyPermissionText(metaProperty));
@@ -647,7 +418,7 @@ void CPropertyInspectorDlg::refreshProperties(bool bHighlightChanges)
 
 		PROPERTY_ITEM_INFO PropertyItemInfo = m_vectorPropertyItems.at(nRow);
 		QMetaProperty metaProperty = pTargetObject->metaObject()->property(PropertyItemInfo.nPropertyIndex);
-		QString strValue = PropertyItemInfo.bReadable ? propertyValueText(metaProperty, metaProperty.read(pTargetObject)) : "<不可读>";
+		QString strValue = PropertyItemInfo.bReadable ? propertyValueText(PropertyItemInfo, metaProperty.read(pTargetObject)) : "<不可读>";
 		bool bChanged = bHighlightChanges && m_mapPropertyValues.contains(nRow) && (m_mapPropertyValues.value(nRow) != strValue);
 		if (bChanged)
 		{
@@ -691,9 +462,15 @@ void CPropertyInspectorDlg::refreshBaseInfo()
 	auto strSize = [](const QSize& sz) {
 		return QString("(%1,%2)").arg(sz.width()).arg(sz.height());
 	};
+	// 原顶部 QLabel 的 Class/ObjectName/Pointer 并入列表头部(对所有目标类型生效)
+	{
+		QString strObjectName = pTargetObject->objectName();
+		listBaseInfo.append(qMakePair(QString("class"), QString(pTargetObject->metaObject()->className())));
+		listBaseInfo.append(qMakePair(QString("objectName"), strObjectName.isEmpty() ? QString("<未命名>") : strObjectName));
+		listBaseInfo.append(qMakePair(QString("pointer"), pointerToHex(pTargetObject)));
+	}
 	if (QWidget* pTargetWidget = qobject_cast<QWidget*>(pTargetObject))
 	{
-		// 内容与原独立"基础信息"窗口一致(去掉 class/objectName, 在"状态"tab)
 		listBaseInfo.append(qMakePair(QString("geometry"), strRect(pTargetWidget->geometry())));
 		listBaseInfo.append(qMakePair(QString("screen geometry"), strRect(ScreenRect(pTargetWidget))));
 		listBaseInfo.append(qMakePair(QString("size"), strSize(pTargetWidget->size())));
@@ -743,9 +520,9 @@ void CPropertyInspectorDlg::refreshStatus()
 
 	QObject* pTargetObject = m_pTargetObject.data();
 	QList<QPair<QString, QString>> listStatus;
-	listStatus.append(qMakePair(QString("Class"), QString(pTargetObject->metaObject()->className())));
-	listStatus.append(qMakePair(QString("ObjectName"), pTargetObject->objectName()));
-	listStatus.append(qMakePair(QString("Thread"), pTargetObject->thread() == QThread::currentThread() ? QString("当前线程") : QString("其他线程")));
+	// Class/ObjectName 移入基础信息列表; 状态 tab 只留运行时状态。
+	// Thread 行删掉: 目标都来自控件树(QWidget/布局, 必在主线程), 永远显示"当前线程"没有信息量;
+	// 跨线程禁编辑的安全护栏(bCurrentThread)不受影响, 仍在属性编辑路径生效
 
 	if (QWidget* pTargetWidget = qobject_cast<QWidget*>(pTargetObject))
 	{
@@ -812,22 +589,13 @@ void CPropertyInspectorDlg::refreshStatus()
 
 void CPropertyInspectorDlg::refreshTargetCaption()
 {
+	// 顶部 QLabel 已删, Class/ObjectName/Pointer 内容移入基础信息列表(refreshBaseInfo)
 	if (m_pTargetObject.isNull())
 	{
 		return;
 	}
 
-	QObject* pTargetObject = m_pTargetObject.data();
-	QString strObjectName = pTargetObject->objectName();
-	QString strTarget = QString("Class : %1 | ObjectName : %2 | Pointer : %3")
-		.arg(pTargetObject->metaObject()->className())
-		.arg(strObjectName.isEmpty() ? "<未命名>" : strObjectName)
-		.arg(pointerToHex(pTargetObject));
-	m_pTargetLabel->setText(strTarget);
-	setWindowTitle(QString("QtSpy · 组件信息 - %1").arg(objectString(pTargetObject)));
-
-	bool bCurrentThread = pTargetObject->thread() == QThread::currentThread();
-	m_pTargetLabel->setToolTip(bCurrentThread ? "目标对象位于当前线程，可编辑受支持的可写属性。" : "目标对象位于其他线程，仅允许查看属性。");
+	setWindowTitle(QString("QtSpy · 组件信息 - %1").arg(objectString(m_pTargetObject.data())));
 }
 
 void CPropertyInspectorDlg::filterProperties(const QString& strKeyword)
@@ -863,8 +631,9 @@ void CPropertyInspectorDlg::applyPropertyEdit(QTableWidgetItem* pItem)
 	}
 
 	QMetaProperty metaProperty = pTargetObject->metaObject()->property(PropertyItemInfo.nPropertyIndex);
-	QVariant value;
-	if (!convertPropertyValue(PropertyItemInfo, pItem->text(), value))
+	// 文本 -> 值的解析统一在 ParamEditor(各类型精确可逆格式, 失败返回无效 QVariant)
+	QVariant value = ParamEditor::textToValue(paramTypeOfItem(PropertyItemInfo), pItem->text());
+	if (!value.isValid())
 	{
 		QMessageBox::warning(this, "属性写入失败", QString("“%1”不是有效的 %2 值。").arg(pItem->text()).arg(metaProperty.typeName()));
 		refreshProperties(false);
@@ -886,7 +655,7 @@ void CPropertyInspectorDlg::applyPropertyEdit(QTableWidgetItem* pItem)
 	if (PropertyItemInfo.bReadable)
 	{
 		QVariant currentValue = metaProperty.read(pTargetObject);
-		strCurrentValue = propertyValueText(metaProperty, currentValue);
+		strCurrentValue = propertyValueText(PropertyItemInfo, currentValue);
 	}
 	m_bUpdating = true;
 	pItem->setText(strCurrentValue);
@@ -943,7 +712,6 @@ void CPropertyInspectorDlg::handleTargetDestroyed()
 	m_pPropertyTable->setEnabled(false);
 	m_pBaseInfoTable->setEnabled(false);
 	m_pStatusTable->setEnabled(false);
-	m_pTargetLabel->setText("目标对象已销毁");
 	setWindowTitle("QtSpy · 组件信息 - 目标对象已销毁");
 }
 

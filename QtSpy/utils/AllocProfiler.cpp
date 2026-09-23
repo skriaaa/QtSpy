@@ -1,4 +1,5 @@
 #include "AllocProfiler.h"
+#include "SymbolResolver.h"
 #include <QMutex>
 #include <QMutexLocker>
 #include <QHash>
@@ -109,111 +110,20 @@ bool    g_attached  = false;
 
 // (业务模块判断缓存改成每线程 tiny cache, 见 tls_raCache)
 
-// --- 符号解析(延后, 显示时才调, 带缓存) ---
-HANDLE g_hProc = nullptr;
 HMODULE g_hMainExe = nullptr;          // 目标主 exe 模块, 业务帧优先选它
-QAtomicInt g_symbolsInited(0);
-QMutex g_resolveMutex;
-QHash<quint64, QPair<QString, QString>> g_resolveCache;  // addr -> (symbol, fileLine)
-struct ModInfo { QString name; HMODULE hMod = nullptr; };
-QHash<quint64, ModInfo> g_moduleCache;  // addr -> (模块basename, HMODULE), 省掉重复 GetModuleFileNameW
 
-// 收集当前进程所有已加载模块的目录, 组成符号搜索路径(去重)
-QString buildSearchPath()
-{
-	QStringList dirs;
-	QSet<QString> seen;
-	HMODULE mods[1024];
-	DWORD cbNeeded = 0;
-	HANDLE hProc = GetCurrentProcess();
-	if (EnumProcessModules(hProc, mods, sizeof(mods), &cbNeeded))
-	{
-		int count = int(cbNeeded / sizeof(HMODULE));
-		WCHAR buf[MAX_PATH];
-		for (int i = 0; i < count; ++i)
-		{
-			if (!GetModuleFileNameExW(hProc, mods[i], buf, MAX_PATH))
-				continue;
-			QString full = QString::fromWCharArray(buf);
-			QString d = QFileInfo(full).absolutePath();
-			QString key = d.toLower();
-			if (!seen.contains(key))
-			{
-				seen.insert(key);
-				dirs.append(d);
-			}
-		}
-	}
-	return dirs.join(QLatin1Char(';'));
-}
-
-// 真正执行符号初始化的重活儿, 在工作线程跑, 避免阻塞注入方 UI 与目标进程
-void doSymbolInit()
-{
-	g_hProc = GetCurrentProcess();
-	g_hMainExe = GetModuleHandleW(nullptr);
-	// 关键: 不使用 DEFERRED_LOADS, 强制立即加载行号表; 加 LOAD_ANYTHING 让路径不完美时也尽力
-	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_LOAD_LINES | SYMOPT_LOAD_ANYTHING | SYMOPT_NO_PROMPTS | SYMOPT_FAIL_CRITICAL_ERRORS);
-	QString searchPath = buildSearchPath();
-	// 若 dbghelp 已被别人 SymInitialize 过, 我们的 Initialize 会失败, 走 SymRefreshModuleList 强刷
-	BOOL ok = SymInitializeW(g_hProc, searchPath.isEmpty() ? nullptr : (PCWSTR)searchPath.utf16(), TRUE);
-	if (!ok)
-	{
-		// 已被初始化, 追加我们的搜索路径后强刷所有模块
-		WCHAR oldPath[4096] = { 0 };
-		SymGetSearchPathW(g_hProc, oldPath, 4096);
-		QString merged = QString::fromWCharArray(oldPath);
-		if (!searchPath.isEmpty())
-			merged = merged.isEmpty() ? searchPath : (merged + QLatin1Char(';') + searchPath);
-		SymSetSearchPathW(g_hProc, (PCWSTR)merged.utf16());
-		SymRefreshModuleList(g_hProc);
-	}
-	g_symbolsInited.storeRelease(1);
-}
-
+// 符号机制本体在 utils/SymbolResolver(dbghelp 进程内单份), 这里保留原有函数形态做转发
 void ensureSymbolsAsync()
 {
-	if (g_symbolsInited.loadAcquire())
-		return;
-	// 后台线程做符号加载, 主 exe + 所有业务 dll 的 pdb 都会走 LOAD_LINES 立即读入
-	QThread* t = QThread::create([]() { doSymbolInit(); });
-	QObject::connect(t, &QThread::finished, t, &QObject::deleteLater);
-	t->start();
+	SymbolResolver::ensureAsync();
 }
 
-// 取地址所属模块的 basename(小写)+HMODULE。带缓存, 省掉重复 GetModuleFileNameW。
+// 取地址所属模块的 basename(小写)+HMODULE。缓存与实现在 SymbolResolver, 这里只做形态适配
 QString moduleBasenameOf(DWORD64 addr, HMODULE* hModOut = nullptr)
 {
-	{
-		QMutexLocker l(&g_resolveMutex);
-		auto it = g_moduleCache.find(addr);
-		if (it != g_moduleCache.end())
-		{
-			if (hModOut) *hModOut = it.value().hMod;
-			return it.value().name;
-		}
-	}
-	HMODULE hMod = nullptr;
-	GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-	                   reinterpret_cast<LPCWSTR>(addr), &hMod);
-	QString name;
-	if (hMod)
-	{
-		WCHAR buf[MAX_PATH];
-		DWORD n = GetModuleFileNameW(hMod, buf, MAX_PATH);
-		if (n > 0)
-		{
-			QString full = QString::fromWCharArray(buf, int(n));
-			int cut = qMax(full.lastIndexOf(QChar('/')), full.lastIndexOf(QChar('\\')));
-			name = ((cut >= 0) ? full.mid(cut + 1) : full).toLower();
-		}
-	}
-	{
-		QMutexLocker l(&g_resolveMutex);
-		g_moduleCache[addr] = ModInfo{ name, hMod };
-	}
-	if (hModOut) *hModOut = hMod;
-	return name;
+	if (hModOut)
+		*hModOut = reinterpret_cast<HMODULE>(SymbolResolver::moduleHandleOf(addr));
+	return SymbolResolver::moduleBasename(addr);
 }
 
 // 是否为应跳过的非业务模块(Qt/系统/CRT/QtSpy 自身)
@@ -295,47 +205,10 @@ int pickBusinessFrame(const SiteStats& s)
 	return 0;
 }
 
-// 解析单个地址 -> (符号, 文件:行)。无源行时 fileLine 为空。
+// 解析单个地址 -> (符号, 文件:行)。无源行时 fileLine 为空。实现在 SymbolResolver
 void resolveSymbol(DWORD64 addr, QString& symbolOut, QString& fileLineOut)
 {
-	{
-		QMutexLocker l(&g_resolveMutex);
-		auto it = g_resolveCache.find(addr);
-		if (it != g_resolveCache.end())
-		{
-			symbolOut = it.value().first;
-			fileLineOut = it.value().second;
-			return;
-		}
-	}
-	symbolOut.clear();
-	fileLineOut.clear();
-	// 符号未就绪, 只给地址; 不写缓存, 让就绪后重新解析
-	if (!g_symbolsInited.loadAcquire())
-	{
-		symbolOut = QString("0x%1").arg(addr, 0, 16);
-		return;
-	}
-	DWORD64 displacement = 0;
-	char buf[sizeof(SYMBOL_INFO) + MAX_SYM_NAME];
-	auto* sym = reinterpret_cast<PSYMBOL_INFO>(buf);
-	sym->SizeOfStruct = sizeof(SYMBOL_INFO);
-	sym->MaxNameLen = MAX_SYM_NAME;
-	if (SymFromAddr(g_hProc, addr, &displacement, sym))
-	{
-		symbolOut = QString::fromLocal8Bit(sym->Name) + QString("+0x%1").arg(displacement, 0, 16);
-		IMAGEHLP_LINE64 line;
-		line.SizeOfStruct = sizeof(line);
-		DWORD lineDisp = 0;
-		if (SymGetLineFromAddr64(g_hProc, addr, &lineDisp, &line))
-			fileLineOut = QString::fromLocal8Bit(line.FileName) + ":" + QString::number(line.LineNumber);
-	}
-	else
-	{
-		symbolOut = QString("0x%1").arg(addr, 0, 16);
-	}
-	QMutexLocker l(&g_resolveMutex);
-	g_resolveCache[addr] = qMakePair(symbolOut, fileLineOut);
+	SymbolResolver::resolve(addr, symbolOut, fileLineOut);
 }
 
 // 由 SiteStats 构造一条 SiteView: 业务代表帧解析在此完成
@@ -593,7 +466,8 @@ void attach()
 {
 	if (g_attached)
 		return;
-	ensureSymbolsAsync();  // 后台加载 pdb, 不阻塞 UI
+	ensureSymbolsAsync();  // 后台加载 pdb, 不阻塞 UI(见下方 ensureSymbolsAsync 包装)
+	g_hMainExe = GetModuleHandleW(nullptr);  // 原先在符号初始化线程里顺带设置, 改为主线程同步设置更确定
 
 	// 优先从目标进程实际加载的 CRT 里取地址, 保证挂的是"它在用的那个"
 	HMODULE hCrt = findCrtModule();
@@ -634,8 +508,7 @@ void attach()
 
 bool symbolsReady()
 {
-	return g_symbolsInited.loadAcquire() != 0;
-}
+	return SymbolResolver::ready();}
 
 void detach()
 {

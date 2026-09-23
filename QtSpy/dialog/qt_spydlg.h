@@ -133,10 +133,14 @@ private:
 	void initContextMenu();
 
 	void addMethodRow(QTableWidget* table, QMetaMethod* method);
-	void addConnectionRow(ConnectionInfo* pInfo);
+	void addConnectionRow(ConnectionInfo* pInfo, bool bDuplicate = false);
 
 	void setContent();
 	void clearContent();
+	// 连接表独立刷新 + 符号就绪轮询(见 qt_spydlg.cpp, lambda/PMF 槽名列依赖 dbghelp 符号)
+	void refreshConnections();
+	void waitForSymbolsThenRefresh();
+	void pollSymbolsForConnections();
 
 	CLogTraceWnd* traceWnd();
 private:
@@ -147,6 +151,8 @@ private:
 	QObject* m_pTargetObject{ nullptr };
 	std::map<QMetaMethod*, CSignalSpy*> m_arrSignal;
 	CLogTraceWnd* m_pTraceWnd{ nullptr };
+	// 连接表等待符号就绪的轮询挂起标记(防多个轮询链)
+	bool m_bWaitingSymbols{ false };
 };
 
 class CStatusInfoWnd : public CListInfoWnd {
@@ -181,7 +187,12 @@ protected:
 public:
 	QStringListModel m_listModel;
 	QListView*		 m_listView;
+	// 唯一勾选框行: 基类放 onlyLog/trace(其左侧弹性占位把整组推到行右端), 子类把事件选项插到占位前靠左
 	QHBoxLayout* m_pControlLayout{ nullptr };
+	// 底部按钮行(logfile 独占左侧, clear 及子类追加按钮在右侧)
+	QHBoxLayout* m_pBottomLayout{ nullptr };
+	// trace 开关(勾选=自动滚动跟随新日志), 列表被点击时在代码里同步取消勾选
+	QCheckBox* m_pTraceCheck{ nullptr };
 	QTimer m_timerFlushLog;
 	QStringList m_listPendingLog;
 	int m_nLogGeneration{ 0 };

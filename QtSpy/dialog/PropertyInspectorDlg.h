@@ -1,6 +1,7 @@
 #pragma once
 
 #include "qt_spydlg.h"
+#include "ParamEditor.h"
 
 #include <QHash>
 #include <QMetaEnum>
@@ -8,9 +9,9 @@
 #include <QPointer>
 #include <QStyledItemDelegate>
 #include <QVector>
+#include <functional>
 
 class QCheckBox;
-class QLabel;
 class QLineEdit;
 class QTableWidget;
 class QTableWidgetItem;
@@ -31,11 +32,20 @@ struct PROPERTY_ITEM_INFO
 class CPropertyItemDelegate : public QStyledItemDelegate
 {
 public:
+	using ParamTypeResolver = std::function<ParamEditor::ParamType(int)>;
+
 	explicit CPropertyItemDelegate(QObject* pParent = nullptr);
 
+	// 行号 -> 参数类型描述(属性面板按 m_vectorPropertyItems 提供)
+	void setParamTypeResolver(const ParamTypeResolver& fnResolver);
+
 	QWidget* createEditor(QWidget* pParent, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
+	void updateEditorGeometry(QWidget* pEditor, const QStyleOptionViewItem& option, const QModelIndex& index) const override;
 	void setEditorData(QWidget* pEditor, const QModelIndex& index) const override;
 	void setModelData(QWidget* pEditor, QAbstractItemModel* pModel, const QModelIndex& index) const override;
+
+private:
+	ParamTypeResolver m_fnResolveParamType;
 };
 
 class CPropertyInspectorDlg : public CXDialog
@@ -70,7 +80,6 @@ private:
 
 private:
 	QPointer<QObject> m_pTargetObject;
-	QLabel* m_pTargetLabel = nullptr;
 	QLineEdit* m_pSearchEdit = nullptr;
 	QCheckBox* m_pAutoRefreshCheckBox = nullptr;
 	QTableWidget* m_pPropertyTable = nullptr;

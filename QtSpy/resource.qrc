@@ -2,7 +2,17 @@
     <qresource prefix="/icons">
         <file>resource/spy_icon.png</file>
         <file>resource/catch.png</file>
+        <file>resource/checkbox-indicator.png</file>
+        <file>resource/checkbox-indicator-checked.png</file>
         <file>resource/tree_close.png</file>
         <file>resource/tree_open.png</file>
+        <file>resource/tab_arrow_right.png</file>
+        <file>resource/tab_arrow_left.png</file>
+        <file>resource/tab_arrow_right_disabled.png</file>
+        <file>resource/tab_arrow_left_disabled.png</file>
+        <file>resource/spin_arrow_up.png</file>
+        <file>resource/spin_arrow_down.png</file>
+        <file>resource/spin_arrow_up_disabled.png</file>
+        <file>resource/spin_arrow_down_disabled.png</file>
     </qresource>
 </RCC>

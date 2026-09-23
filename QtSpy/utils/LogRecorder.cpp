@@ -28,6 +28,8 @@ class CLogThread:public QThread
 public:
 	CLogThread()
 	{
+		// 路径在构造时(调用线程)定死: 之后 run() 一直写这个文件, 查询方也始终拿到同一路径
+		m_strLogPath = buildLogFilePath();
 		m_bRun.store(true);
 		QThread::start();
 	}
@@ -44,16 +46,21 @@ public:
 			wait();
 		}
 	}
+	// m_strLogPath 在 start() 之前写入(构造函数内), 之后只读, 无需加锁
+	const QString& logFilePath() const { return m_strLogPath; }
+	static QString buildLogFilePath()
+	{
+		QDir logDir(logRootPath());
+		return logDir.absoluteFilePath("log") + "/"
+			+ QCoreApplication::applicationName() + "_" + QString::number(QCoreApplication::applicationPid()) + "_"
+			+ QDate::currentDate().toString("yyyyMMdd") + ".log";
+	}
 public:
 	virtual void run() override
 	{
 		QDir logDir(logRootPath());
 		logDir.mkpath("log");
-		QString strLogPath = logDir.absoluteFilePath("log") + "/";
-		strLogPath += QCoreApplication::applicationName() + "_" + QString::number(QCoreApplication::applicationPid()) + "_";
-		strLogPath += QDate::currentDate().toString("yyyyMMdd") + ".log";
-
-		QFile file(strLogPath);
+		QFile file(m_strLogPath);
 		if (false == file.open(QIODevice::Append | QIODevice::Text))
 		{
 			return;
@@ -117,6 +124,7 @@ public:
 		return !m_queueLog.empty();
 	}
 private:
+	QString m_strLogPath;
 	QMutex m_mutex;
 	QWaitCondition m_waitCondition;
 	std::atomic<bool> m_bRun;
@@ -196,6 +204,17 @@ void CLogRecorder::shutdown()
 	{
 		g_logThread->stop();
 	}
+}
+
+QString CLogRecorder::logFilePath()
+{
+	// 优先取写入线程在用的路径; 退出阶段线程已停时退回即时计算(仅用于兜底)
+	CLogThread* pThread = logThread();
+	if (nullptr != pThread)
+	{
+		return pThread->logFilePath();
+	}
+	return CLogThread::buildLogFilePath();
 }
 
 void CLogRecorder::addLog(const char* szLog)

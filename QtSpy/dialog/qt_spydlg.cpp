@@ -27,6 +27,7 @@
 #include <QFontDialog>
 #include <QPlainTextEdit>
 #include <QListView>
+#include <QHash>
 #include <QStringListModel>
 #include <QHeaderView>
 #include <QStyleFactory>
@@ -44,9 +45,30 @@
 #include "proxyStyle/ProxyStyle.h"
 #include "StyleEditDlg.h"
 #include "utils/LogRecorder.h"
+#include <QDesktopServices>
+#include <QUrl>
+#include <QFile>
+#include <QFileInfo>
 #include "SpyMainWindow.h"
 #include "ObjectTree.h"
 #include "ConnectionInfo.h"
+#include "ParamEditor.h"
+#include "utils/SymbolResolver.h"
+#include <QColor>
+#include <QCursor>
+#include <QDateTime>
+#include <QFont>
+#include <QFormLayout>
+#include <QKeySequence>
+#include <QPointer>
+#include <QPoint>
+#include <QRect>
+#include <QSize>
+#include <QSizePolicy>
+#include <QVector>
+#include <QStyledItemDelegate>
+#include <QStyleOptionViewItem>
+#include <QStyle>
 
 namespace
 {
@@ -54,6 +76,45 @@ namespace
 	constexpr int LOG_LIST_FLUSH_INTERVAL = 50;
 	constexpr int LOG_LIST_FLUSH_BATCH = 500;
 	constexpr int LOG_LIST_PENDING_MAX_COUNT = LOG_LIST_MAX_COUNT + LOG_LIST_FLUSH_BATCH;
+
+	// 连接表"重复连接"行标记 role(整行各列 item 都置 true)
+	constexpr int kRoleDuplicateConn = Qt::UserRole + 1;
+
+	// 重复连接行整行自绘 danger 底 + 白字。
+	// 不用 item 的 BackgroundRole/ForegroundRole 画刷标记: QSS 的 ::item:hover/
+	// ::item:selected 背景规则会经 PE_PanelItemViewItem 直接画底, 盖掉 BackgroundRole,
+	// 而 ForegroundRole 白字仍留在 palette Text 上 —— 悬停时白字配浅底不可读,
+	// 选中时红底被浅蓝底替换标记消失。委托统一画, 三个状态观感一致。
+	class CConnectionTableDelegate : public QStyledItemDelegate
+	{
+	public:
+		using QStyledItemDelegate::QStyledItemDelegate;
+
+		void paint(QPainter* painter, const QStyleOptionViewItem& option, const QModelIndex& index) const override
+		{
+			if (!index.data(kRoleDuplicateConn).toBool())
+			{
+				QStyledItemDelegate::paint(painter, option, index);
+				return;
+			}
+			QStyleOptionViewItem opt(option);
+			initStyleOption(&opt, index);
+			const SpyPalette& palette = QtSpyTheme::palette();
+			painter->fillRect(option.rect, palette.danger);
+			// 选中反馈: 红底保持, 外加 1px accent 边框(悬停不动, 红底本身已够醒目)
+			if (opt.state & QStyle::State_Selected)
+			{
+				painter->setPen(QPen(palette.accent, 1));
+				painter->drawRect(option.rect.adjusted(0, 0, -1, -1));
+			}
+			const QStyle* pStyle = (nullptr != opt.widget) ? opt.widget->style() : QApplication::style();
+			const QRect textRect = pStyle->subElementRect(QStyle::SE_ItemViewItemText, &opt, opt.widget);
+			painter->setPen(palette.selectionText);
+			painter->setFont(opt.font);
+			painter->drawText(textRect, opt.displayAlignment,
+				opt.fontMetrics.elidedText(opt.text, opt.textElideMode, textRect.width()));
+		}
+	};
 
 	void selectTreeItem(QTreeWidget* pTree, QTreeWidgetItem* pItem)
 	{
@@ -432,6 +493,273 @@ void CListInfoWnd::InitTableWidget()
 	m_pTableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 }
 
+namespace
+{
+	// 发送信号的形参类型名 -> ParamType。
+	// 枚举: 目标类元对象链上反查同名 enumerator(Q_ENUM 注册过), 形参名可能是
+	//       "Alignment" 或 "Qt::Alignment"(scope 限定), Qt 命名空间枚举不在链上查不到;
+	// QFlags: "QFlags<X>" 取内层枚举名再查, 查不到按数值编辑(flags 位组合难手输, 可接受);
+	// 其余: QMetaType::type 兜底, 查不到(UnknownType)则该参数不可编辑。
+	ParamEditor::ParamType resolveParamType(const QMetaObject* pMetaObject, const QString& strTypeName)
+	{
+		ParamEditor::ParamType type;
+		type.strTypeName = strTypeName;
+		if (strTypeName.endsWith(QLatin1Char('*')))
+		{
+			type.bPointer = true;
+			return type;
+		}
+
+		QString strEnumName = strTypeName;
+		bool bFlag = false;
+		if (strEnumName.startsWith(QLatin1String("QFlags<")) && strEnumName.endsWith(QLatin1Char('>')))
+		{
+			strEnumName = strEnumName.mid(7, strEnumName.size() - 8);
+			bFlag = true;
+		}
+		for (const QMetaObject* pCurrent = pMetaObject; pCurrent; pCurrent = pCurrent->superClass())
+		{
+			for (int i = pCurrent->enumeratorOffset(); i < pCurrent->enumeratorCount(); ++i)
+			{
+				const QMetaEnum candidate = pCurrent->enumerator(i);
+				if ((strEnumName == QString::fromLatin1(candidate.name()))
+					|| (strEnumName == QStringLiteral("%1::%2").arg(QString::fromLatin1(candidate.scope()), QString::fromLatin1(candidate.name()))))
+				{
+					type.nTypeId = QMetaType::Int;   // 枚举/flags 存储均为 int
+					type.metaEnum = candidate;
+					type.bFlag = bFlag || candidate.isFlag();
+					return type;
+				}
+			}
+		}
+		if (bFlag)
+		{
+			// QFlags<X> 且 X 不在目标元对象链上: 按数值编辑(invoke 传 int)
+			type.nTypeId = QMetaType::Int;
+			type.bFlag = true;
+			return type;
+		}
+		type.nTypeId = QMetaType::type(strTypeName.toLatin1());
+		return type;
+	}
+
+	// 各类型的合理初值(编辑器打开即有一份可发送的数据)
+	QVariant defaultParamValue(const ParamEditor::ParamType& type)
+	{
+		if (type.bPointer || type.metaEnum.isValid())
+		{
+			return QVariant(0);
+		}
+		switch (type.nTypeId)
+		{
+		case QMetaType::Bool:
+			return QVariant(false);
+		case QMetaType::Float:
+		case QMetaType::Double:
+			return QVariant(0.0);
+		case QMetaType::QString:
+			return QVariant(QString());
+		case QMetaType::QChar:
+			return QVariant(QChar());
+		case QMetaType::QByteArray:
+			return QVariant(QByteArray());
+		case QMetaType::QColor:
+			return QVariant::fromValue(QColor(Qt::white));
+		case QMetaType::QCursor:
+			return QVariant::fromValue(QCursor(Qt::ArrowCursor));
+		case QMetaType::QFont:
+			return QVariant::fromValue(QFont());
+		case QMetaType::QSizePolicy:
+			return QVariant::fromValue(QSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred));
+		case QMetaType::QPoint:
+			return QVariant(QPoint(0, 0));
+		case QMetaType::QPointF:
+			return QVariant::fromValue(QPointF(0, 0));
+		case QMetaType::QSize:
+			return QVariant(QSize(0, 0));
+		case QMetaType::QSizeF:
+			return QVariant::fromValue(QSizeF(0, 0));
+		case QMetaType::QRect:
+			return QVariant(QRect(0, 0, 0, 0));
+		case QMetaType::QRectF:
+			return QVariant::fromValue(QRectF(0, 0, 0, 0));
+		case QMetaType::QDate:
+			return QVariant(QDate(2000, 1, 1));
+		case QMetaType::QTime:
+			return QVariant(QTime(0, 0, 0));
+		case QMetaType::QDateTime:
+			return QVariant(QDateTime(QDate(2000, 1, 1), QTime(0, 0, 0)));
+		case QMetaType::QKeySequence:
+			return QVariant::fromValue(QKeySequence());
+		case QMetaType::QUrl:
+			return QVariant::fromValue(QUrl(QStringLiteral("about:blank")));
+		case QMetaType::QStringList:
+			return QVariant(QStringList());
+		default:
+			return QVariant(0);
+		}
+	}
+
+	// 发送信号参数弹窗: 列出 QMetaMethod 的形参逐个编辑(ParamEditor), 确认后 invoke。
+	// invoke 的 QGenericArgument 类型名必须与签名完全一致 —— 一律取 parameterTypes() 原名;
+	// 数据按类型布局: 枚举/flags 传 int, char* 传字符串首地址(需保活), 指针传地址值,
+	// 其余先收敛到目标 metatype 再取 QVariant::data()。
+	// 连接方式沿用 DirectConnection(形参枚举常未注册 metatype, 排队投递会失败)。
+	class CEmitSignalDlg : public QDialog
+	{
+	public:
+		CEmitSignalDlg(QWidget* pParent, QObject* pTarget, const QMetaMethod& method)
+			: QDialog(pParent), m_pTarget(pTarget), m_method(method)
+		{
+			setWindowTitle(QStringLiteral("QtSpy · 发送信号"));
+			QVBoxLayout* pLayout = new QVBoxLayout(this);
+
+			QLabel* pHeader = new QLabel(QStringLiteral("%1::%2")
+				.arg(QString::fromLatin1(method.enclosingMetaObject()->className()), QString::fromLatin1(method.methodSignature())));
+			pLayout->addWidget(pHeader);
+
+			const QList<QByteArray> arrParamTypes = method.parameterTypes();
+			const QList<QByteArray> arrParamNames = method.parameterNames();
+			const QMetaObject* pTargetMetaObject = pTarget ? pTarget->metaObject() : nullptr;
+			QFormLayout* pForm = new QFormLayout;
+			pForm->setLabelAlignment(Qt::AlignRight | Qt::AlignVCenter);
+			for (int i = 0; i < arrParamTypes.size(); ++i)
+			{
+				const ParamEditor::ParamType type = resolveParamType(pTargetMetaObject, QString::fromLatin1(arrParamTypes.at(i)));
+				QString strLabel = arrParamNames.at(i).isEmpty()
+					? QStringLiteral("arg%1").arg(i + 1)
+					: QString::fromLatin1(arrParamNames.at(i));
+				strLabel += QStringLiteral(" (%1)").arg(QString::fromLatin1(arrParamTypes.at(i)));
+
+				QWidget* pEditor = nullptr;
+				if (ParamEditor::isEditable(type, true))
+				{
+					pEditor = ParamEditor::createEditor(type, this);
+					ParamEditor::setEditorValue(pEditor, defaultParamValue(type));
+				}
+				else
+				{
+					// 未注册类型(查不到 metatype): 无编辑器, 发送时拦截报错
+					QLabel* pUnsupported = new QLabel(QStringLiteral("(不支持编辑)"));
+					pUnsupported->setAlignment(Qt::AlignCenter);
+					pEditor = pUnsupported;
+				}
+				m_arrTypes.append(type);
+				m_arrEditors.append(pEditor);
+				m_arrLabels.append(strLabel);
+				pForm->addRow(strLabel, pEditor);
+			}
+			pLayout->addLayout(pForm);
+
+			QHBoxLayout* pButtonLayout = new QHBoxLayout;
+			pButtonLayout->addStretch(1);
+			QPushButton* pSendButton = new QPushButton(QStringLiteral("发送"));
+			pSendButton->setDefault(true);
+			connect(pSendButton, &QPushButton::clicked, this, [this]() { emitSignal(); });
+			QPushButton* pCancelButton = new QPushButton(QStringLiteral("取消"));
+			connect(pCancelButton, &QPushButton::clicked, this, [this]() { reject(); });
+			pButtonLayout->addWidget(pSendButton);
+			pButtonLayout->addWidget(pCancelButton);
+			pLayout->addLayout(pButtonLayout);
+
+			pLayout->setSizeConstraint(QLayout::SetFixedSize);
+		}
+
+	private:
+		void emitSignal()
+		{
+			if (m_pTarget.isNull())
+			{
+				QMessageBox::warning(this, QStringLiteral("发送信号"), QStringLiteral("目标对象已销毁。"));
+				reject();
+				return;
+			}
+			const int nCount = m_method.parameterCount();
+			if (10 < nCount)
+			{
+				QMessageBox::warning(this, QStringLiteral("发送信号"), QStringLiteral("参数超过 10 个, 无法发送。"));
+				return;
+			}
+
+			// 1) 编辑器取值
+			QVector<QVariant> arrValues(nCount);
+			for (int i = 0; i < nCount; ++i)
+			{
+				if (ParamEditor::isEditable(m_arrTypes.at(i), true))
+				{
+					arrValues[i] = ParamEditor::editorValue(m_arrEditors.at(i));
+				}
+				if (!arrValues[i].isValid())
+				{
+					QMessageBox::warning(this, QStringLiteral("发送信号"),
+						QStringLiteral("参数 %1 的值无效。").arg(m_arrLabels.at(i).section(QLatin1Char(' '), 0, 0)));
+					return;
+				}
+			}
+
+			// 2) 按形参原名构造 QGenericArgument(存储需在 invoke 前就位并保活)
+			const QList<QByteArray> arrParamTypes = m_method.parameterTypes();
+			QVector<QVariant> arrValueStorages(nCount);
+			QVector<int> arrIntStorages(nCount);
+			QVector<quintptr> arrPtrStorages(nCount);
+			QVector<const char*> arrCharPtrs(nCount);
+			QVector<QByteArray> arrCharBuffers(nCount);
+			QGenericArgument arrArgs[10];
+			for (int i = 0; i < nCount; ++i)
+			{
+				const QByteArray& tn = arrParamTypes.at(i);
+				const ParamEditor::ParamType& type = m_arrTypes.at(i);
+				if (("char*" == tn) || ("const char*" == tn))
+				{
+					arrCharBuffers[i] = arrValues[i].toByteArray();
+					arrCharPtrs[i] = arrCharBuffers[i].constData();
+					arrArgs[i] = QGenericArgument(tn.constData(), &arrCharPtrs[i]);
+				}
+				else if (type.bPointer)
+				{
+					arrPtrStorages[i] = quintptr(arrValues[i].toULongLong());
+					arrArgs[i] = QGenericArgument(tn.constData(), &arrPtrStorages[i]);
+				}
+				else if (type.metaEnum.isValid())
+				{
+					arrIntStorages[i] = arrValues[i].toInt();
+					arrArgs[i] = QGenericArgument(tn.constData(), &arrIntStorages[i]);
+				}
+				else
+				{
+					QVariant value = arrValues[i];
+					if ((QMetaType::UnknownType != type.nTypeId) && (type.nTypeId != value.userType())
+						&& (!value.convert(type.nTypeId)))
+					{
+						QMessageBox::warning(this, QStringLiteral("发送信号"),
+							QStringLiteral("参数 %1 的值无法转换为 %2。").arg(i + 1).arg(QString::fromLatin1(tn)));
+						return;
+					}
+					arrValueStorages[i] = value;
+					arrArgs[i] = QGenericArgument(tn.constData(), arrValueStorages[i].data());
+				}
+			}
+
+			// 3) invoke(未用参数位保持空 QGenericArgument, invoke 按 parameterCount 截断)
+			if (!m_method.invoke(m_pTarget.data(), Qt::DirectConnection,
+				arrArgs[0], arrArgs[1], arrArgs[2], arrArgs[3], arrArgs[4],
+				arrArgs[5], arrArgs[6], arrArgs[7], arrArgs[8], arrArgs[9]))
+			{
+				QMessageBox::warning(this, QStringLiteral("发送信号"), QStringLiteral("invoke 失败(类型不匹配或方法不可用)。"));
+				return;
+			}
+			accept();
+		}
+
+	private:
+		QPointer<QObject> m_pTarget;
+		QMetaMethod m_method;
+		QVector<ParamEditor::ParamType> m_arrTypes;
+		QVector<QWidget*> m_arrEditors;
+		QStringList m_arrLabels;
+	};
+}
+
 CSignalSpyWnd::CSignalSpyWnd(QWidget* parent /*= nullptr*/) :CXDialog(parent)
 {
 	initWidgets();
@@ -495,7 +823,20 @@ void CSignalSpyWnd::initTableWidget()
 	fnSetTable(m_pSignalTable, { "signal" });
 	fnSetTable(m_pSlotTable, { "slot" });
 	fnSetTable(m_pConnectionTable, { "sender", "signal", "receiver", "slot", "type" });
+	// 重复连接行由委托自绘(见 CConnectionTableDelegate), 选中/悬停不穿帮
+	m_pConnectionTable->setItemDelegate(new CConnectionTableDelegate(m_pConnectionTable));
+	// 连接表列宽: 窗口拓宽均分给各列(fnSetTable 已全列 Stretch); type 列窄标签按内容收
 	m_pConnectionTable->horizontalHeader()->setSectionResizeMode(4, QHeaderView::ResizeToContents);
+	// QTableView 默认 wordWrap: 路径串按词折行, 行高只够一行, 只画首行+"…"(如 "<lambda> E:…"),
+	// 尾部大片空白; 关掉换行恢复整行宽度省略
+	m_pConnectionTable->setWordWrap(false);
+	// slot 列 lambda 定位的 file:line 在尾部, 中部省略同时保留头尾
+	m_pConnectionTable->setTextElideMode(Qt::ElideMiddle);
+	// 三张表都是只读展示, 关掉触发编辑(双击/回车/F2)
+	for (QTableWidget* table : { m_pSignalTable, m_pSlotTable, m_pConnectionTable })
+	{
+		table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+	}
 }
 
 void CSignalSpyWnd::initContextMenu()
@@ -515,7 +856,9 @@ void CSignalSpyWnd::initContextMenu()
 			if (item)
 			{
 				QMetaMethod* method = static_cast<QMetaMethod*>(item->data(Qt::UserRole).value<void*>());
-				method->invoke(m_pTargetObject,Qt::DirectConnection);
+				// 弹参数编辑窗: 逐形参构造值后 invoke(此前是无参直调)
+				CEmitSignalDlg dlg(this, m_pTargetObject, *method);
+				dlg.exec();
 			}
 		}
 		if (acbk == acInspectThis)
@@ -561,15 +904,32 @@ void CSignalSpyWnd::addMethodRow(QTableWidget* table, QMetaMethod* method)
 	table->setItem(nRow, 0, item);
 }
 
-void CSignalSpyWnd::addConnectionRow(ConnectionInfo* pInfo)
+void CSignalSpyWnd::addConnectionRow(ConnectionInfo* pInfo, bool bDuplicate)
 {
 	int nRow = m_pConnectionTable->rowCount();
 	m_pConnectionTable->insertRow(nRow);
 	m_pConnectionTable->setItem(nRow, 0, new QTableWidgetItem(objectClass(pInfo->pSender) + ("(0x" + QString::number((uintptr_t)pInfo->pSender, 16) + ")")));
 	m_pConnectionTable->setItem(nRow, 1, new QTableWidgetItem(pInfo->strSignal));
 	m_pConnectionTable->setItem(nRow, 2, new QTableWidgetItem(objectClass(pInfo->pReceiver) + ("(0x" + QString::number((uintptr_t)pInfo->pReceiver, 16) + ")")));
-	m_pConnectionTable->setItem(nRow, 3, new QTableWidgetItem(pInfo->strSlot));
+	// lambda 槽: 鼠标悬停显示从定义处文件截取的完整源码
+	QTableWidgetItem* pSlotItem = new QTableWidgetItem(pInfo->strSlot);
+	if (!pInfo->strSlotSource.isEmpty())
+	{
+		pSlotItem->setToolTip(pInfo->strSlotSource);
+	}
+	m_pConnectionTable->setItem(nRow, 3, pSlotItem);
 	m_pConnectionTable->setItem(nRow, 4, new QTableWidgetItem(pInfo->strConnectType));
+	// 真重复连接(emit 时槽会多次响应): 整行置标记, 由委托画 danger 底 + 白字
+	if (bDuplicate)
+	{
+		for (int c = 0; c < m_pConnectionTable->columnCount(); ++c)
+		{
+			if (QTableWidgetItem* pItem = m_pConnectionTable->item(nRow, c))
+			{
+				pItem->setData(kRoleDuplicateConn, true);
+			}
+		}
+	}
 }
 
 void CSignalSpyWnd::setContent()
@@ -587,15 +947,92 @@ void CSignalSpyWnd::setContent()
 		addMethodRow(m_pSlotTable, &method);
 	}
 
-	for (auto connect : analyzer.outBoundConnections())
+	// 连接表单独走 refreshConnections: dbghelp 符号后台加载完成后可只重刷这一张表
+	refreshConnections();
+}
+
+// 连接表的独立刷新(连接 tab 的槽列里 lambda/PMF 依赖 dbghelp 符号还原)。
+// 不并进 setContent 重刷: clearContent 会把正在监控的信号 spy 一并清掉
+void CSignalSpyWnd::refreshConnections()
+{
+	m_pConnectionTable->setRowCount(0);
+	if (nullptr == m_pTargetObject)
 	{
-		addConnectionRow(&connect);
+		return;
+	}
+	CConnectionAanlyzer analyzer(m_pTargetObject);
+	const QVector<ConnectionInfo> arrOut = analyzer.outBoundConnections();
+	const QVector<ConnectionInfo> arrIn = analyzer.inBoundConnections();
+	// 同一连接的识别键: (sender, signal, receiver, slot, type) 全同视为一条
+	auto fnKey = [](const ConnectionInfo& info) {
+		return QString::number(quintptr(info.pSender), 16) + '|' + info.strSignal
+			+ '|' + QString::number(quintptr(info.pReceiver), 16) + '|' + info.strSlot + '|' + info.strConnectType;
+	};
+	// 自连接(sender==receiver)的同一条连接会在出/入两张列表里各出现一次, 真实条数取 max;
+	// 其余键的真实条数 = 出向 + 入向。真实条数 > 1 即目标程序真的 connect 了多次(emit 时槽多次响应)
+	QHash<QString, QPair<int, int>> arrCount;
+	for (const ConnectionInfo& info : arrOut)
+	{
+		++arrCount[fnKey(info)].first;
+	}
+	for (const ConnectionInfo& info : arrIn)
+	{
+		++arrCount[fnKey(info)].second;
+	}
+	// 逐条入表: 每键只列真实条数条(多出来的为自连接的列表重叠副本), 重复连接标红
+	QHash<QString, int> arrEmitted;
+	auto fnAppend = [&](const ConnectionInfo& info) {
+		const QString strKey = fnKey(info);
+		const QPair<int, int>& cnt = arrCount[strKey];
+		const int nReal = (info.pSender == info.pReceiver) ? qMax(cnt.first, cnt.second) : cnt.first + cnt.second;
+		if (arrEmitted[strKey] >= nReal)
+		{
+			return;
+		}
+		++arrEmitted[strKey];
+		addConnectionRow(const_cast<ConnectionInfo*>(&info), nReal > 1);
+	};
+	for (const ConnectionInfo& info : arrOut)
+	{
+		fnAppend(info);
 	}
 
-	for (auto connect : analyzer.inBoundConnections())
+	for (const ConnectionInfo& info : arrIn)
 	{
-		addConnectionRow(&connect);
+		fnAppend(info);
 	}
+	// 首开时符号多半还在后台加载(槽列 lambda/PMF 显示 <functor> 占位), 就绪后重刷一次
+	if (!SymbolResolver::ready())
+	{
+		waitForSymbolsThenRefresh();
+	}
+}
+
+// 轮询符号就绪(500ms 一拍, singleShot 挂 this 上下文, 窗口销毁自动停)
+void CSignalSpyWnd::waitForSymbolsThenRefresh()
+{
+	if (m_bWaitingSymbols)
+	{
+		return;
+	}
+	m_bWaitingSymbols = true;
+	QTimer::singleShot(500, this, &CSignalSpyWnd::pollSymbolsForConnections);
+}
+
+void CSignalSpyWnd::pollSymbolsForConnections()
+{
+	if (!m_bWaitingSymbols)
+	{
+		return;
+	}
+	if (SymbolResolver::ready())
+	{
+		m_bWaitingSymbols = false;
+		// ready 之后 refreshConnections 不会再挂起新轮询, 链路就此收口
+		refreshConnections();
+		return;
+	}
+	QTimer::singleShot(500, this, &CSignalSpyWnd::pollSymbolsForConnections);
 }
 
 void CSignalSpyWnd::clearContent()
@@ -702,6 +1139,7 @@ CLogTraceWnd::CLogTraceWnd(QWidget* parent /*= nullptr*/, bool bShowBreakCheck /
 	initWidgets();
 	if (bShowBreakCheck && nullptr != m_pControlLayout)
 	{
+		// 行尾已无弹性占位(占位移到了 onlyLog 左侧), 直接追加到行尾即日志选项组末尾
 		m_pControlLayout->addWidget(createBreakCheck());
 	}
 }
@@ -753,14 +1191,21 @@ void CLogTraceWnd::initWidgets()
 	this->setLayout(mainLayout);
 	m_listView = new QListView();
 	m_listView->setModel(&m_listModel);
-	connect(m_listView, &QListView::clicked, [&]() {m_bTrace = false; });
+	// 点击列表视为手动浏览: 停止自动滚动(trace 开关同步取消勾选)
+	connect(m_listView, &QListView::clicked, [&]() {
+		m_bTrace = false;
+		if (m_pTraceCheck)
+		{
+			m_pTraceCheck->setChecked(false);
+		}
+	});
 	m_timerFlushLog.setInterval(LOG_LIST_FLUSH_INTERVAL);
 	QObject::connect(&m_timerFlushLog, &QTimer::timeout, [this]() {
 		flushPendingLogs();
 	});
 	mainLayout->addWidget(m_listView);
 
-	// 列表下方控制行: onlyLog 开关 + 子类追加的控件(触发中断等)
+	// 列表下方"选项"分组里的唯一勾选框行: onlyLog / trace; 子类把事件选项插到本行前部
 	// 原 showList/onlyLog 切换按钮删掉, 改为勾选框: 勾选后日志仅落文件不进列表
 	auto control_1 = new QHBoxLayout();
 	m_pControlLayout = control_1;
@@ -770,43 +1215,82 @@ void CLogTraceWnd::initWidgets()
 		QObject::connect(checkOnlyLog, &QCheckBox::toggled, [this](bool bChecked) {
 			m_bOnlyLog = bChecked;
 			});
+		// onlyLog 左侧弹性占位(取代行尾占位): 事件选项(子类插到行前部)靠左,
+		// 日志选项组推到行右端, 多余宽度全部由此吸收, 勾选框保持内容宽度不被拉伸
+		control_1->addSpacerItem(new QSpacerItem(1, 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
 		control_1->addWidget(checkOnlyLog);
+
+		// trace 从底部按钮改为勾选框: 勾选=列表自动滚动跟随新日志(默认开启)
+		m_pTraceCheck = new QCheckBox("trace");
+		m_pTraceCheck->setChecked(m_bTrace);
+		m_pTraceCheck->setToolTip("勾选后列表自动滚动到最新日志");
+		QObject::connect(m_pTraceCheck, &QCheckBox::toggled, [this](bool bChecked) {
+			m_bTrace = bChecked;
+			});
+		control_1->addWidget(m_pTraceCheck);
 	}
 
 
+	// has/no 过滤各占一行(输入内容可能较长); 标签宽度按 "has:" 文字自然宽度设定, 两行编辑框左端对齐
 	auto control_2 = new QHBoxLayout();
-	auto editFilterHas = new QLineEdit();
-	QObject::connect(editFilterHas, &QLineEdit::textChanged, [&](const QString& str) {
-		if (str.isEmpty())
-		{
-			m_arrStrHas.clear();
-		}
-		else
-		{
-			m_arrStrHas = str.split("|");
-		}
-		});
-	control_2->addWidget(new QLabel("has:"));
-	control_2->addWidget(editFilterHas);
-
 	auto control_3 = new QHBoxLayout();
-	auto editFilterNo = new QLineEdit();
-	QObject::connect(editFilterNo, &QLineEdit::textChanged, [&](const QString& str) {
-		if(str.isEmpty())
-		{
-			m_arrStrNo.clear();
-		}
-		else
-		{
-			m_arrStrNo = str.split("|");
-		}
-		});
-	control_3->addWidget(new QLabel("no:"));
-	control_3->addWidget(editFilterNo);
-
-	// 底部按钮行: clear / trace 固定 80x30
-	auto control_4 = new QHBoxLayout();
+	int nFilterLabelWidth = 0;
 	{
+		auto labelHas = new QLabel("has:");
+		nFilterLabelWidth = labelHas->sizeHint().width();
+		labelHas->setFixedWidth(nFilterLabelWidth);
+		control_2->addWidget(labelHas);
+		auto editFilterHas = new QLineEdit();
+		QObject::connect(editFilterHas, &QLineEdit::textChanged, [&](const QString& str) {
+			if (str.isEmpty())
+			{
+				m_arrStrHas.clear();
+			}
+			else
+			{
+				m_arrStrHas = str.split("|");
+			}
+			});
+		control_2->addWidget(editFilterHas, 1);
+
+		auto labelNo = new QLabel("no:");
+		labelNo->setFixedWidth(nFilterLabelWidth);
+		control_3->addWidget(labelNo);
+		auto editFilterNo = new QLineEdit();
+		QObject::connect(editFilterNo, &QLineEdit::textChanged, [&](const QString& str) {
+			if(str.isEmpty())
+			{
+				m_arrStrNo.clear();
+			}
+			else
+			{
+				m_arrStrNo = str.split("|");
+			}
+			});
+		control_3->addWidget(editFilterNo, 1);
+	}
+
+	// 底部按钮行: logfile 独占左侧, clear 及子类追加的按钮(运行开关等)在右侧; trace 已上移为勾选框
+	auto control_4 = new QHBoxLayout();
+	m_pBottomLayout = control_4;
+	{
+		// 直接用系统默认程序打开当前日志文件
+		auto btnLogFile = new QPushButton("logfile");
+		btnLogFile->setFixedSize(80, 30);
+		btnLogFile->setToolTip("打开当前日志文件");
+		QObject::connect(btnLogFile, &QPushButton::clicked, [this]() {
+			QString strLogPath = CLogRecorder::logFilePath();
+			if (!QFileInfo::exists(strLogPath))
+			{
+				// 写入线程是异步开文件的, 首条日志还没落盘时补一个空文件保证能打开
+				QFile file(strLogPath);
+				file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text);
+			}
+			QDesktopServices::openUrl(QUrl::fromLocalFile(strLogPath));
+			});
+		control_4->addWidget(btnLogFile);
+		control_4->addSpacerItem(new QSpacerItem(1, 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
+
 		auto btnClear = new QPushButton("clear");
 		btnClear->setFixedSize(80, 30);
 		QObject::connect(btnClear, &QPushButton::clicked, [&]() {
@@ -817,15 +1301,24 @@ void CLogTraceWnd::initWidgets()
 			this->m_nCount = 0;
 			});
 		control_4->addWidget(btnClear);
-		auto btnTrace = new QPushButton("trace");
-		btnTrace->setFixedSize(80, 30);
-		QObject::connect(btnTrace, &QPushButton::clicked, [&]() { m_bTrace = true; });
-		control_4->addWidget(btnTrace);
 	}
 
-	mainLayout->addLayout(control_1);
-	mainLayout->addLayout(control_2);
-	mainLayout->addLayout(control_3);
+	// 选项/过滤分组: 勾选框行与 has/no 过滤行分别包进 GroupBox(标题嵌在边框上), 底部按钮行不包
+	auto groupOptions = new QGroupBox(QStringLiteral("选项"));
+	groupOptions->setLayout(control_1);
+	auto groupFilter = new QGroupBox(QStringLiteral("过滤"));
+	{
+		// 分组框内收一点边距, 上下各留 10px 让"过滤"分组不显局促, 两行紧凑排列
+		auto filterLayout = new QVBoxLayout();
+		filterLayout->setContentsMargins(4, 10, 4, 10);
+		filterLayout->setSpacing(4);
+		filterLayout->addLayout(control_2);
+		filterLayout->addLayout(control_3);
+		groupFilter->setLayout(filterLayout);
+	}
+
+	mainLayout->addWidget(groupOptions);
+	mainLayout->addWidget(groupFilter);
 	mainLayout->addLayout(control_4);
 }
 
@@ -972,17 +1465,21 @@ bool CEventTraceWnd::AddInfo(T* pTarget, QEvent* event)
 
 void CEventTraceWnd::initWidget()
 {
-	QHBoxLayout* pLayout = new QHBoxLayout;
-	QPushButton* btnStop = new  QPushButton(m_bRunning ? "runing..." : "stoped");
+	// 监控窗默认客户区 475x400(resize 设的就是客户区尺寸, 不含系统边框; 底部两个分组框占高, 列表拿剩余)
+	resize(475, 400);
+	// 运行开关: 与 clear 同在底部按钮行右侧(logfile 独占左侧), 不在勾选框行
+	QPushButton* btnStop = new QPushButton(m_bRunning ? "runing..." : "stoped");
+	btnStop->setFixedSize(80, 30);
+	// 事件相关勾选框并入唯一勾选框行(插到 onlyLog/trace 前面),
+	// 底部区域收拢为: 勾选框行 / has no 两行过滤 / 按钮行
+	// onlyLog 左侧的弹性占位把事件选项压在左端, 日志选项组推到行右端
 	QCheckBox* filter = new QCheckBox("屏蔽事件");
 	QCheckBox* pCheckSub = new QCheckBox("包含子组件");
-	pLayout->addWidget(filter);
-	pLayout->addWidget(pCheckSub);
-	pLayout->addWidget(createBreakCheck());
-	pLayout->addSpacerItem(new QSpacerItem(1 , 1, QSizePolicy::Expanding, QSizePolicy::Minimum));
-	pLayout->addWidget(btnStop);
-	// 插到列表正下方(索引 1): 布局末尾已被 clear/trace 底部按钮行占据
-	dynamic_cast<QVBoxLayout*>(layout())->insertLayout(1, pLayout);
+	// 包含子组件放最左(监控范围是最常切换的选项), 屏蔽事件/触发中断随后
+	m_pControlLayout->insertWidget(0, pCheckSub);
+	m_pControlLayout->insertWidget(1, filter);
+	m_pControlLayout->insertWidget(2, createBreakCheck());
+	m_pBottomLayout->addWidget(btnStop);
 	connect(filter, &QCheckBox::stateChanged, [this](int state) {
 		m_bFilterEvent = state != Qt::Unchecked;
 		});

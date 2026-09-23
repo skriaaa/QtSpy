@@ -145,7 +145,7 @@ void CSpyMainWindow::updateStatusInfo()
 		return;
 	}
 
-	m_pStatusInfo->setText(QString("捕获控件：%1个    进程控件：%2个")
+	m_pStatusInfo->setText(QString("捕获组件：%1个    所有组件：%2个")
 		.arg(nullptr != m_pTree ? m_pTree->currentCount() : 0)
 		.arg(qApp->allWidgets().count()));
 }

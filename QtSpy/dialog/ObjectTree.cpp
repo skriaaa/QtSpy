@@ -18,6 +18,7 @@
 #include <QCursor>
 #include <QSize>
 #include <QStringList>
+#include <QKeySequence>
 
 #include "qt_spydlg.h"
 #include "PropertyInspectorDlg.h"
@@ -65,6 +66,8 @@ namespace
 		QMenuBar* pMenuBar = new QMenuBar(pDialog);
 		QAction* pActionFind = pMenuBar->addAction("查找");
 		pActionFind->setToolTip("按名称或屏幕拾取定位目标在当前控件树中的位置");
+		// Ctrl+F 快捷键(默认 WindowShortcut 上下文: 本弹窗有焦点才触发, 不串进目标程序)
+		pActionFind->setShortcut(QKeySequence(QStringLiteral("Ctrl+F")));
 		QObject::connect(pActionFind, &QAction::triggered, [pDialog, pTree]() {
 			CFindWnd* pFindWnd = new CFindWnd(pTree, pDialog);
 			pFindWnd->showOnTop();
